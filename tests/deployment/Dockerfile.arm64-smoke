@@ -1,0 +1,19 @@
+# Additional local check on amd64 when host binfmt registration is unavailable.
+# Release images use the main Dockerfile and native architecture CI runners.
+ARG APP_IMAGE=mtg-util:local
+FROM ${APP_IMAGE} AS application
+FROM --platform=linux/amd64 node:24-bookworm-slim AS cross
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++-aarch64-linux-gnu qemu-user-static && rm -rf /var/lib/apt/lists/*
+COPY --from=application /app /app
+RUN CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ npm_config_arch=arm64 npm rebuild better-sqlite3 --build-from-source
+RUN mkdir -p /data && chown node:node /data
+FROM --platform=linux/arm64 arm64v8/node:24-bookworm-slim
+ENV NODE_ENV=production PORT=8080 DATA_DIR=/data ALLOW_INSECURE_HTTP=false
+WORKDIR /app
+COPY --from=cross /usr/bin/qemu-aarch64-static /usr/local/bin/qemu-aarch64-static
+COPY --from=cross --chown=node:node /app /app
+COPY --from=cross --chown=node:node /data /data
+USER node
+ENTRYPOINT ["/usr/local/bin/qemu-aarch64-static", "/usr/local/bin/node"]
+CMD ["dist/server/server/index.js"]

@@ -1,0 +1,16 @@
+{
+  "measuredAt": "2026-09-16T03:29:08.729Z",
+  "environment": "Linux x86_64 desktop, Chromium phone viewport 390×844, healthy loopback connection; not physical-phone/LAN measurements",
+  "localInputToAnimationFrame": {
+    "samples": 20,
+    "medianMs": 14.1,
+    "p95Ms": 14.5,
+    "maxMs": 14.5
+  },
+  "sharedRequestThroughCommitAndBroadcastToAnimationFrame": {
+    "samples": 20,
+    "medianMs": 14.6,
+    "p95Ms": 14.9,
+    "maxMs": 23.2
+  }
+}

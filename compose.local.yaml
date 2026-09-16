@@ -1,0 +1,21 @@
+services:
+  mtg-util:
+    build: .
+    image: mtg-util:local
+    ports:
+      - '8080:8080'
+    environment:
+      NODE_ENV: production
+      PORT: '8080'
+      DATA_DIR: /data
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:8080}
+      ALLOW_INSECURE_HTTP: ${ALLOW_INSECURE_HTTP:-true}
+      ROOM_TTL_DAYS: ${ROOM_TTL_DAYS:-30}
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-90}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-0}
+    volumes:
+      - mtg-util-data:/data
+    init: true
+    restart: unless-stopped
+volumes:
+  mtg-util-data:

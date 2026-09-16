@@ -1,0 +1,12 @@
+node_modules
+dist
+.browser-cache
+.npm-cache
+.mtg-data
+test-results
+playwright-report
+package-lock.json
+BUILD_PLAN.md
+.git
+.agents
+.codex

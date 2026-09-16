@@ -1,0 +1,128 @@
+export type Vec = [number, number, number];
+export type Face = { points: Vec[]; center: Vec; normal: Vec; u: Vec; v: Vec; inradius: number };
+export const add = (a: Vec, b: Vec): Vec => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+export const mul = (a: Vec, n: number): Vec => [a[0] * n, a[1] * n, a[2] * n];
+export const dot = (a: Vec, b: Vec) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross = (a: Vec, b: Vec): Vec => [
+  a[1] * b[2] - a[2] * b[1],
+  a[2] * b[0] - a[0] * b[2],
+  a[0] * b[1] - a[1] * b[0],
+];
+const unit = (v: Vec) => mul(v, 1 / Math.hypot(...v));
+const subtract = (a: Vec, b: Vec) => add(a, mul(b, -1));
+const cache = new Map<number, Face[]>();
+
+// Build actual convex polyhedra. Rendering them in Canvas2D avoids requiring a
+// WebGL context on older phones; every face still has a 3D normal and projection.
+function hull(vertices: Vec[]): Face[] {
+  const planes = new Map<string, { ids: number[]; normal: Vec }>();
+  for (let a = 0; a < vertices.length; a++)
+    for (let b = a + 1; b < vertices.length; b++)
+      for (let c = b + 1; c < vertices.length; c++) {
+        let n = cross(subtract(vertices[b], vertices[a]), subtract(vertices[c], vertices[a]));
+        if (Math.hypot(...n) < 1e-6) continue;
+        n = unit(n);
+        const distances = vertices.map((v) => dot(n, subtract(v, vertices[a])));
+        if (distances.some((d) => d > 1e-5) && distances.some((d) => d < -1e-5)) continue;
+        if (dot(n, vertices[a]) < 0) n = mul(n, -1);
+        const ids = distances.flatMap((d, i) => (Math.abs(d) < 1e-5 ? [i] : []));
+        planes.set(ids.join(','), { ids, normal: n });
+      }
+  return [...planes.values()].map(({ ids, normal }) => {
+    const center = mul(
+      ids.reduce<Vec>((sum, i) => add(sum, vertices[i]), [0, 0, 0]),
+      1 / ids.length,
+    );
+    let u = unit(subtract(vertices[ids[0]], center)),
+      v = cross(normal, u);
+    const points = ids
+      .map((i) => vertices[i])
+      .sort(
+        (a, b) =>
+          Math.atan2(dot(subtract(a, center), v), dot(subtract(a, center), u)) -
+          Math.atan2(dot(subtract(b, center), v), dot(subtract(b, center), u)),
+      );
+    // Give the face a deliberate upright outline: square edges are level;
+    // triangular, pentagonal and kite faces point toward the top of the screen.
+    const radii = points.map((p) => Math.hypot(...subtract(p, center)));
+    if (points.length === 4 && Math.max(...radii) - Math.min(...radii) < 1e-5) {
+      u = unit(subtract(points[1], points[0]));
+      v = cross(normal, u);
+    } else {
+      const top = points[radii.indexOf(Math.max(...radii))];
+      v = unit(subtract(top, center));
+      u = cross(v, normal);
+    }
+    const inradius = Math.min(
+      ...points.map((p, i) => {
+        const edge = subtract(points[(i + 1) % points.length], p);
+        return Math.abs(dot(cross(edge, subtract(center, p)), normal)) / Math.hypot(...edge);
+      }),
+    );
+    return { points, center, normal, u, v, inradius };
+  });
+}
+function dual(vertices: Vec[]) {
+  const points = hull(vertices).map((f) => mul(f.normal, 1 / dot(f.normal, f.center)));
+  const radius = Math.max(...points.map((v) => Math.hypot(...v)));
+  return points.map((v) => mul(v, 1 / radius));
+}
+export function geometry(sides: number): Face[] {
+  const key = sides === 100 ? 10 : sides;
+  if (cache.has(key)) return cache.get(key)!;
+  let vertices: Vec[] = [];
+  const phi = (1 + Math.sqrt(5)) / 2;
+  const ico: Vec[] = [];
+  for (const a of [-1, 1]) for (const b of [-phi, phi]) ico.push([0, a, b], [a, b, 0], [b, 0, a]);
+  if (key === 4)
+    vertices = [
+      [1, 1, 1],
+      [-1, -1, 1],
+      [-1, 1, -1],
+      [1, -1, -1],
+    ];
+  else if (key === 6)
+    for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) vertices.push([x, y, z]);
+  else if (key === 8)
+    vertices = [
+      [1, 0, 0],
+      [-1, 0, 0],
+      [0, 1, 0],
+      [0, -1, 0],
+      [0, 0, 1],
+      [0, 0, -1],
+    ];
+  else if (key === 10) {
+    const anti: Vec[] = Array.from({ length: 10 }, (_, i) => [
+      Math.cos((i * Math.PI) / 5),
+      Math.sin((i * Math.PI) / 5),
+      i % 2 ? 0.82 : -0.82,
+    ]);
+    vertices = dual(anti);
+  } else if (key === 12) vertices = dual(ico);
+  else if (key === 2)
+    for (const z of [0.16, -0.16])
+      for (let i = 0; i < 12; i++)
+        vertices.push([Math.cos((i * Math.PI) / 6), Math.sin((i * Math.PI) / 6), z]);
+  else vertices = ico;
+  const radius = Math.max(...vertices.map((v) => Math.hypot(...v)));
+  const faces = hull(vertices.map((v) => mul(v, 1 / radius)));
+  if (key === 2) faces.sort((a, b) => b.points.length - a.points.length);
+  cache.set(key, faces);
+  return faces;
+}
+
+export function orient(point: Vec, face: Face, spin: Vec): Vec {
+  let [x, y, z] = [dot(point, face.u), dot(point, face.v), dot(point, face.normal)];
+  const [a, b, c] = spin;
+  [y, z] = [y * Math.cos(a) - z * Math.sin(a), y * Math.sin(a) + z * Math.cos(a)];
+  [x, z] = [x * Math.cos(b) + z * Math.sin(b), -x * Math.sin(b) + z * Math.cos(b)];
+  return [x * Math.cos(c) - y * Math.sin(c), x * Math.sin(c) + y * Math.cos(c), z];
+}
+
+// At rest the recorded face's normal points directly at the viewer, and its
+// lettering axes match screen right/up. Never add a resting tilt here.
+export function rollSpin(progress: number, seed: number): Vec {
+  const amount = Math.pow(1 - Math.max(0, Math.min(1, progress / 0.95)), 1.7);
+  return [amount * (18 + seed * 7), amount * (15 + seed * 13), amount * (10 + seed * 8)];
+}

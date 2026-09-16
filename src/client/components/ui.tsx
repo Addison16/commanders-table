@@ -1,0 +1,243 @@
+import { type ReactNode } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { create } from 'zustand';
+
+const paths: Record<string, ReactNode> = {
+  plus: <path d="M12 5v14M5 12h14" />,
+  minus: <path d="M5 12h14" />,
+  close: <path d="m6 6 12 12M18 6 6 18" />,
+  dice: (
+    <>
+      <rect x="4" y="4" width="16" height="16" rx="4" />
+      <path d="M8 8h.01M16 8h.01M12 12h.01M8 16h.01M16 16h.01" strokeWidth="3" />
+    </>
+  ),
+  undo: (
+    <>
+      <path d="M8 4 3 9l5 5M3 9h10a7 7 0 0 1 0 14" />
+    </>
+  ),
+  menu: (
+    <>
+      <path d="M5 6h14M5 12h14M5 18h14" />
+    </>
+  ),
+  people: (
+    <>
+      <circle cx="9" cy="8" r="3" />
+      <path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M19 20v-2a6 6 0 0 0-2-4" />
+    </>
+  ),
+  arrow: <path d="m9 5 7 7-7 7" />,
+  phone: (
+    <>
+      <rect x="6" y="2" width="12" height="20" rx="3" />
+      <path d="M10 18h4" />
+    </>
+  ),
+  shield: (
+    <>
+      <path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z" />
+      <path d="m8 12 3 3 5-6" />
+    </>
+  ),
+  crown: (
+    <>
+      <path d="m3 6 4 5 5-7 5 7 4-5-2 13H5ZM5 22h14" />
+    </>
+  ),
+  rotate: (
+    <>
+      <path d="M20 9a8 8 0 1 0 0 7M20 3v6h-6" />
+    </>
+  ),
+  spark: <path d="m12 2 2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5Z" />,
+  history: (
+    <>
+      <path d="M3 10a9 9 0 1 1 1 7M3 4v6h6M12 7v6l4 2" />
+    </>
+  ),
+  download: (
+    <>
+      <path d="M12 3v12m-5-5 5 5 5-5M4 15v6h16v-6" />
+    </>
+  ),
+  link: (
+    <>
+      <path
+        d="m10 14 4-4M8 16l-2 2a4 4 0 0 1-6-6l5-5a4 4 0 0 1 6 0M16 8l2-2a4 4 0 0 1 6 6l-5 5a4 4 0 0 1-6 0"
+        transform="translate(1 0) scale(.9)"
+      />
+    </>
+  ),
+  check: <path d="m5 12 4 4L20 5" />,
+  settings: (
+    <>
+      <path d="M4 6h16M4 12h16M4 18h16" />
+      <circle cx="9" cy="6" r="2" />
+      <circle cx="15" cy="12" r="2" />
+      <circle cx="8" cy="18" r="2" />
+    </>
+  ),
+};
+export function Icon({ name, size = 20 }: { name: string; size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {paths[name] ?? paths.spark}
+    </svg>
+  );
+}
+export function Sigil({ index = 0, className = '' }: { index?: number; className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 100 100" fill="none" aria-hidden="true">
+      <g stroke="currentColor" strokeWidth="1.2">
+        <circle cx="50" cy="50" r="38" strokeDasharray="2 7" />
+        <path d="m50 8 36 21v42L50 92 14 71V29Z" />
+        <g transform={`rotate(${index * 45} 50 50)`}>
+          <path d="m50 19 22 31-22 31-22-31Z M19 50h62M50 19v62" />
+          <circle cx="50" cy="50" r="15" />
+          <path d="m35 35 30 30M65 35 35 65" />
+        </g>
+      </g>
+      <circle cx="50" cy="50" r="4" fill="currentColor" />
+    </svg>
+  );
+}
+export function Sheet({
+  title,
+  description,
+  children,
+  onClose,
+  wide = false,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+  onClose: () => void;
+  wide?: boolean;
+}) {
+  return (
+    <Dialog.Root
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <Dialog.Portal>
+        <Dialog.Overlay className="sheet-overlay" />
+        <Dialog.Content
+          className={`sheet ${wide ? 'wide' : ''}`}
+          onCloseAutoFocus={(e) => {
+            const target = document.querySelector<HTMLButtonElement>('[data-sheet-return]');
+            if (target) {
+              e.preventDefault();
+              target.focus();
+            }
+          }}
+        >
+          <div className="sheet-handle" />
+          <header className="sheet-header">
+            <div>
+              <Dialog.Title>{title}</Dialog.Title>
+              <Dialog.Description className={description ? 'muted' : 'sr-only'}>
+                {description ?? `${title} controls`}
+              </Dialog.Description>
+            </div>
+            <Dialog.Close className="icon-button" aria-label={`Close ${title}`}>
+              <Icon name="close" />
+            </Dialog.Close>
+          </header>
+          <div className="sheet-body">{children}</div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+type Confirmation = { title: string; message: string; resolve: (yes: boolean) => void };
+const useConfirmation = create<{ value?: Confirmation }>(() => ({}));
+export function ask(title: string, message: string) {
+  return new Promise<boolean>((resolve) => useConfirmation.setState({ value: { title, message, resolve } }));
+}
+export function ConfirmationDialog() {
+  const value = useConfirmation((s) => s.value);
+  if (!value) return null;
+  const done = (yes: boolean) => {
+    value.resolve(yes);
+    useConfirmation.setState({ value: undefined });
+  };
+  return (
+    <Dialog.Root
+      open
+      onOpenChange={(open) => {
+        if (!open) done(false);
+      }}
+    >
+      <Dialog.Portal>
+        <Dialog.Overlay className="sheet-overlay confirmation" />
+        <Dialog.Content className="confirm-dialog">
+          <Dialog.Title>{value.title}</Dialog.Title>
+          <Dialog.Description>{value.message}</Dialog.Description>
+          <div className="button-row">
+            <button className="secondary" onClick={() => done(false)}>
+              Cancel
+            </button>
+            <button className="primary" onClick={() => done(true)}>
+              Confirm
+            </button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      {children}
+      {hint && <small>{hint}</small>}
+    </label>
+  );
+}
+export function Toggle({
+  checked,
+  onChange,
+  children,
+  disabled = false,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  children: ReactNode;
+  disabled?: boolean;
+}) {
+  return (
+    <label className="toggle">
+      <span>{children}</span>
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span className="switch" aria-hidden="true" />
+    </label>
+  );
+}
+export function downloadText(text: string, filename: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}

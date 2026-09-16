@@ -1,0 +1,85 @@
+# Architecture
+
+MTG Util uses one shared, validated game domain with a local IndexedDB controller and a server-backed room controller. The frontend is React/TypeScript, Zustand, Radix Dialog, and CSS; Fastify serves the production app and WebSocket API. Exact dependency versions are in `package-lock.json`; Node 24 is the deployment target.
+
+## Boundaries
+
+| Area             | Files                                              | Responsibility                                                                          |
+| ---------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Domain           | `src/shared/schema.ts`, `game.ts`, `random.ts`     | Bounded contracts, referential checks, pure reducer, injected time/IDs/random results   |
+| Local controller | `src/client/app/store.ts`, `storage/repository.ts` | Hydration, optimistic preview, serial transactions, leases, recovery, archives          |
+| Room controller  | `src/client/adapters/room.ts`                      | Guest renewal, durable pending envelopes, revisions, reconnect, authoritative snapshots |
+| Interface        | `src/client/features/`, `components/`, `styles/`   | Mobile board/sheets, cancelable hold input, accessibility, utilities, local preferences |
+| Server           | `src/server/app.ts`, `service.ts`                  | HTTP/WS validation, authorization, transactional commands, retention, broadcasting      |
+| Database/config  | `src/server/database.ts`, `config.ts`              | SQLite migration and pragmas, explicit origin/security configuration                    |
+
+There are no accounts, analytics, hardware fingerprints, cloud services, card lookups, or external runtime asset requests. Names and commander labels are rendered as text. All players, commanders, matches, members, and operations have independent stable IDs.
+
+## Game model
+
+Schema version 1 stores ordered player IDs, player maps, individual commander records, `damageReceived[recipientId][commanderId]`, marker holders, turn/timer state, history, and reversible patches. Combat damage plus optional life loss is one atomic action; a correction changes only damage. Partner damage and casts remain separate. The reducer accepts explicit timestamps, IDs, and random results and does not import React, storage, or network code.
+
+Numbers are bounded safe integers: life −999,999 to 999,999 and nonnegative trackers up to 999,999. Defaults of 10 poison and 21 damage from one commander are warnings, not automatic elimination. Manual restore is required after elimination. First-player candidates exclude eliminated players. Rematches reset play values with a new match ID while preserving seat/commander identities and configuration.
+
+Local history contains at most 200 gameplay events and 60 undo groups; dice have a separate bounded history. Each hold increment commits normally, with adjacent actions sharing an undo group. Markers and turn highlights remain visible when a holder is eliminated. Shared undo additionally checks the room revision and eligible actor; administrative changes form a barrier to undoing or grouping earlier actions.
+
+Random integers use rejection sampling over cryptographic bytes. Shared rolls are chosen and persisted by the server; animation reads the recorded result. The timer derives from start/pause timestamps. Room clients estimate server clock offset at HTTP request midpoint and refresh it on reconnection/session renewal.
+
+`src/client/dice/` constructs convex 3D dice meshes and projects shaded faces into a full-screen Canvas2D overlay above the board. Bounces, wall/body collisions, spin and settling are visual only; their deterministic seed never chooses game results. Animation stops after settling, with a static reduced-motion path. Each tied d20 round animates in order, and winner text/scores are mounted only after the final round. The result overlay supports browser Back and dismisses to the board. Percentile rolls display paired d10s. This adds no runtime dependency or external assets.
+
+The final pose aligns the recorded face normal with the camera and its lettering axes with screen right/up. There is no resting tilt. The projection centers asymmetric d10 result faces. `rounded.ts` builds a closed surface from inset planar faces, cylindrical edge fillets and spherical corner caps, with lower detail for small dice. `ivory.ts` renders warm ivory, normal-based lighting, subtle face-local grain and dark engraved numbers. The coin uses a gold material. Browser checks inspect actual canvas text transforms, including percentile dice and the coin.
+
+Audio is synthesized locally. Roll gestures unlock/resume the AudioContext before asynchronous persistence; the dice presentation schedules a short series of damped impacts for each roll/tie round. Reduced motion uses one short impact, replay stays silent, and dismissing or muting cancels pending sound. Settings preview the sound on enable and provide a Test dice sound button. Resuming is awaited and failures remain nonfatal; see [AudioContext.resume](https://developer.mozilla.org/en-US/docs/Web/API/AudioContext/resume). Device mute, routing and physical speakers remain outside browser automation.
+
+`settings.turnTracking` defaults to false, including when parsing older schema-v1 games. Its host-controlled command is undoable. A first-player roll does not change the turn; confirming it does when tracking is enabled. Legacy counter/marker data remains readable after removal of the Extra trackers UI.
+
+## Local durability
+
+IndexedDB version 1 stores records for the profile, active game, previous checkpoint, ten archives, room previews, and pending room envelopes. Each gameplay write compares the committed game ID/revision inside a read/write transaction, writes the checkpoint and new state together, and renews an 18-second editor lease. A six-second foreground lease refresh and BroadcastChannel improve feedback between tabs; transaction comparisons protect correctness even without channel delivery.
+
+An additional bounded `unfinished` record preserves local games when switching tables. Resume reads the freshest saved version and archives the outgoing table in the same transaction, retaining match ID/revision, damage, names and history. Ended games and rematched predecessors are excluded. A read-only foreground tab checks for an expired lease every six seconds and acquires it transactionally; an active lease still requires explicit takeover.
+
+`endedAt` is a nullable timestamp with a backward-compatible default. Ending stores a separate bounded `standby` snapshot in the same IndexedDB transaction as the game. Home lists ended games until `endedAt + 24 hours`. Reopen checks the deadline and editor lease and saves the outgoing game in a single transaction; it retains the original identity and scores and leaves the timer paused. End/reopen participate in normal history and undo, with expiry also enforced when undo would reopen an ended game. Confirmed active-to-ended transitions return the interface home; merely viewing a finished game does not navigate away again.
+
+The UI previews local actions immediately and displays saving status until the serialized write completes. A stale tab cannot overwrite another tab; explicit takeover makes the former editor read-only. A failed write rolls back the preview and presents an error. Unavailable storage uses a clearly labeled memory fallback. Invalid/future data is preserved, with recovery export, checkpoint restore, or explicit fresh-start controls. Imports validate size (2 MB), schema, integer bounds, and references before replacement. Game exports omit the profile, local installation ID, room credentials, and cookies.
+
+The board selects visible seat primitives so unrelated seat changes do not rerender every tile. Pointer holds are independent and are canceled on lost capture, cancel, release, overlays, navigation, backgrounding, and connection loss. Other controls preserve browser scrolling and zoom.
+
+`profile.tableLayout` is a local display preference; older profiles default to `upright`. `shared` rotates the far row by 180 degrees and enlarges the life controls. Landscape uses two rows, spanning odd player counts evenly; compact layouts with more than four seats may scroll to preserve touch target sizes. Per-seat rotation overrides are honored, and choosing a preset clears those overrides. Neither layout selection nor phone rotation changes game state, room permissions, or another phone's view; My seat stays upright.
+
+## Room authority and synchronization
+
+Sessions use random 256-bit opaque credentials in persistent HttpOnly, SameSite=Lax, Path=/ cookies without a Domain attribute. Only credential hashes are stored in SQLite. HTTPS sets Secure; HTTP requires deliberate configuration. The cookie and server expiry renew together through HTTP on reconnect/foreground and every 15 minutes during active play. Expired authority requires an explicit new join/create action; it is never resurrected as the old member.
+
+An invitation code admits a pending participant to a limited lobby. The host approves a requested seat transactionally; a partial unique database index ensures one approved member per seat. Replacing someone revokes their membership first. Removing a member revokes active sockets. Host transfer preserves seat assignment. Presence is transient and separate from elimination and permissions.
+
+Seat requests may carry a validated `profile` with the player's name and optional one/two commander labels. These choices are stored in `members.seat_profile`, survive reconnects/server restarts, and are shown to the requester and host while approval is pending. The limited lobby also receives a `commanderEnabled` flag, without a game snapshot. Guests can update their request; competing/stale approvals still use the existing revision and receipt checks. Approval applies the requested profile and membership in one transaction, clears the pending profile, and records the seat setup in game history. It preserves seat IDs, existing commander IDs, life, damage, casts, and timer; a partner may be added or an unused second commander removed. Removing a commander with recorded damage or casts is rejected without partial membership/game changes. Leaving commander fields blank preserves the seat's labels. Name/commander editing during play remains limited to the assigned player and host.
+
+`GET /api/rooms` reads an existing authenticated cookie and lists up to ten unfinished or recently ended, unexpired rooms belonging to that guest. Ended rooms appear for approved members during the 24-hour recovery window, with a host-only reopen capability. It excludes revoked memberships and returns display metadata without invitation codes, credentials, or game snapshots. Home combines these summaries with local games and keeps cached room references for outages. A fresh local player never needs a guest session. Resume reauthenticates against the room controller before enabling input; reopening waits for the socket's ready frame before submitting the ordinary durable command. Server authorization, revisions, expiry and receipt deduplication apply to reopen exactly as to other host actions.
+
+Commands carry protocol version, room ID, match ID, stable operation ID, base room revision, and a strict command payload. Actor and role come exclusively from the session. Every command uses the same validation/authorization path over HTTP and WebSocket:
+
+1. Authenticate, validate the envelope, and look up its actor/operation receipt before mutable role or match checks.
+2. Return the original receipt for an identical retry. A revoked actor receives no new private snapshot. Reusing an operation ID with a different payload fails.
+3. For a new operation, check current membership and action permissions. Relative deltas apply to the current state; absolute/administrative actions require the current revision.
+4. Commit the new game, monotonic room revision, event, and receipt in one SQLite transaction. Acknowledgement and snapshot broadcasts happen only afterward.
+
+Room revision never resets, even after rematch. Receipts remain for the room's entire lifetime, beyond the 200-event visible history. Clients ignore older views and refresh after gaps. Pending relative previews rebase on confirmed state; committed snapshots remain separate for exports and outage copies.
+
+An operation envelope is saved locally before sending. An acknowledgement removes that exact ID. After interruption, the client retries recorded IDs, fetches the current state, then enables input. Disconnects reject new input, cancel holds, and do not intentionally queue unsent edits. Connection generations prevent delayed saves from sending on a replacement room/socket. If authority is lost, pending action records remain readable for reconciliation. Copying the confirmed state into local play creates an independent game and never merges it automatically.
+
+The server sends compact current room snapshots, including bounded history. It uses one subscription per socket, heartbeat checks, jittered reconnect backoff, a 16 KB message/command limit, rate limits, and a 1 MB outbound socket buffer limit. HTTP and WebSocket origins must match `PUBLIC_ORIGIN`; state-changing HTTP and WS commands have CSRF checks. Session bootstrap requires a protocol header. Payloads, cookies, tokens, and invitation URLs are not logged.
+
+## Database and retention
+
+SQLite uses WAL, foreign keys, FULL synchronization, a five-second busy timeout, and transactional schema migrations. Tables hold sessions, rooms, members, operation receipts, bounded events, and up to ten final match snapshots. The first migration creates schema version 1; version 2 adds nullable `members.seat_profile` without changing existing games or memberships. A newer database is rejected safely by an older server, so rolling back to the previous release requires the matching version-1 backup.
+
+Rooms expire 30 days after their last committed gameplay/administrative activity by default. Sessions have a configurable rolling 90-day lifetime. A minute cleanup interval removes expired records and notifies affected sockets; presence and heartbeats do not extend room retention. A lost host credential has no invitation-code recovery mechanism.
+
+Run one server process against one database on local storage. Scaling across machines or using a network filesystem requires a different design. Browser-local games and preferences are not included in the server volume.
+
+## Production and PWA
+
+Fastify serves assets and the API from one origin. Hashed assets are immutable; HTML and the service worker revalidate. Private API responses use `no-store`, and the service worker never falls back to the app shell for `/api/`. Only application assets are precached, including local fonts/icons. An update prompts for confirmation and waits for pending saves rather than reloading mid-game.
+
+HTTP LAN use includes an ID fallback based on `crypto.getRandomValues()` when `randomUUID()` is unavailable. Wake lock, vibration, fullscreen, sound, installation, and offline reopening are optional enhancements; normal browser-tab play does not require them.
