@@ -188,8 +188,8 @@
     padding: 0;
     background: none !important;
     font-family: 'Cormorant Garamond', serif;
-    font-size: 25px;
-    letter-spacing: 1px;
+    font-size: clamp(18px, 4.9vw, 25px);
+    letter-spacing: 0.3px;
     gap: 8px;
     white-space: nowrap;
   }

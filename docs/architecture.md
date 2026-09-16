@@ -1,6 +1,8 @@
 # Architecture
 
-MTG Util uses one shared, validated game domain with a local IndexedDB controller and a server-backed room controller. The frontend is React/TypeScript, Zustand, Radix Dialog, and CSS; Fastify serves the production app and WebSocket API. Exact dependency versions are in `package-lock.json`; Node 24 is the deployment target.
+Commander's Table uses one shared, validated game domain with a local IndexedDB controller and a server-backed room controller. The frontend is React/TypeScript, Zustand, Radix Dialog, and CSS; Fastify serves the production app and WebSocket API. Exact dependency versions are in `package-lock.json`; Node 24 is the deployment target.
+
+The original `mtg-util` storage keys, database filename, export-format identifier, protocol headers, and Compose service/volume names remain stable. Renaming the app does not create a new database or invalidate existing saves, shared memberships, or exported games.
 
 ## Boundaries
 

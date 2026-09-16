@@ -147,7 +147,7 @@ export function App() {
           <button className="brand" onClick={home} aria-label="Home & recent games">
             <img src="/icon.svg" alt="" />
             <span>
-              MTG <b>Util</b>
+              Commander's <b>Table</b>
             </span>
           </button>
           <div className="header-right">
@@ -224,7 +224,9 @@ export function App() {
                   onClick={() =>
                     void repository
                       .get('active')
-                      .then((value) => downloadText(JSON.stringify(value, null, 2), 'mtg-util-recovery.json'))
+                      .then((value) =>
+                        downloadText(JSON.stringify(value, null, 2), 'commanders-table-recovery.json'),
+                      )
                       .catch(report)
                   }
                 >

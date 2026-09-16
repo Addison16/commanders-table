@@ -1,4 +1,4 @@
-# MTG Util
+# Commander's Table
 
 A mobile-first companion for a physical Magic table. Track one to eight players on **One device**, or create a **Shared room** and invite friends by code, link, or QR. No accounts and no installation required.
 
@@ -44,7 +44,7 @@ PUBLIC_ORIGIN=http://localhost:8080 ALLOW_INSECURE_HTTP=true npm start
 - Hosts control every seat. Approved guests control their own numerical trackers, player name, and commander labels, and can roll dice. The host may enable **Friends can edit every seat** for numerical adjustments; this does not grant administration or another player's name edits. **My seat** makes a guest's controls larger.
 - **Utilities** rolls ivory 3D dice over the life-counter board, with rounded edges/corners, subtle grain and engraved numbers. The result face lands centered and upright. Each player gets a die in **d20 for everyone**; tied leaders roll again before the starting player is revealed. Every approved room member can roll for the table. Results are saved before animation; skipping or reopening a result never rolls again. Sound effects add a dice clatter; **Display & preferences → Test dice sound** previews it.
 - **Turn tracking** is off by default. Enable it in Utilities to show a compact **Next turn** button beside Undo; shared turn controls belong to the host. The game timer is also in Utilities. The former Extra trackers section has been removed.
-- **New game** asks **One phone** or **Multiple phones** again. Tap the **MTG Util** logo for Home and the last ten unfinished local/shared games. **Resume** reopens the original local game with its names, totals, and history, or reconnects to a shared room using the current guest cookie.
+- **New game** asks **One phone** or **Multiple phones** again. Tap the **Commander's Table** logo for Home and the last ten unfinished local/shared games. **Resume** reopens the original local game with its names, totals, and history, or reconnects to a shared room using the current guest cookie.
 - **End game** returns everyone to the starting options after the ending is saved. **Recently ended** keeps up to ten recent games available for 24 hours. **Reopen** restores the original totals, damage, commanders and history; the timer stays paused. In shared rooms, only the host can reopen play, and existing seat assignments remain intact. **View final game** lets you inspect a finished game and still use its dice. Starting another game does not remove the recovery entry. Expired recovery entries disappear; existing archives and server retention remain separate.
 - **Game menu** also offers history, settings, export/import, rematch, and archived local games. A rematch keeps room assignments and seat identities. A new shared setup creates a new room; previous unfinished rooms stay resumable. Local archives and the unfinished-game list are each bounded to ten stored entries.
 
@@ -76,16 +76,16 @@ PUBLIC_ORIGIN=http://localhost:8080 ALLOW_INSECURE_HTTP=true \
 
 For LAN play, set `PUBLIC_ORIGIN` to the server's LAN address and use that address on every device. The container runs as non-root, serves port 8080, and stores SQLite plus its WAL sidecars in the named volume `mtg-util_mtg-util-data`. Keep the same Compose project name and volume when updating. Use local disk storage for this single-instance database.
 
-Release images use **`ghcr.io/addison16/mtg-util`**, with `latest` and `stable` following stable releases and version tags such as `0.1.0` for a fixed release. Images support standard 64-bit PCs/servers (`amd64`) and 64-bit ARM machines (`arm64`). A tag becomes available after its release workflow succeeds.
+Release images use **`ghcr.io/addison16/commanders-table`**, with `latest` and `stable` following stable releases and version tags such as `0.1.0` for a fixed release. Images support standard 64-bit PCs/servers (`amd64`) and 64-bit ARM machines (`arm64`). A tag becomes available after its release workflow succeeds.
 
-Download **compose.yaml** and **.env.docker.example** from [Releases](https://github.com/Addison16/MTG-Util/releases). Put them in a folder, copy `.env.docker.example` to `.env`, and set `PUBLIC_ORIGIN` to the exact address your phones will open—for example, `http://192.168.1.50:8080`. Then run:
+Download **compose.yaml** and **.env.docker.example** from [Releases](https://github.com/Addison16/commanders-table/releases). Put them in a folder, copy `.env.docker.example` to `.env`, and set `PUBLIC_ORIGIN` to the exact address your phones will open—for example, `http://192.168.1.50:8080`. Then run:
 
 ```sh
 docker compose -p mtg-util -f compose.yaml pull
 docker compose -p mtg-util -f compose.yaml up -d
 ```
 
-To update, back up first, then run those same two commands. Existing games remain in the named volume. Selecting `latest` makes new releases available to pull; it does not restart your running container automatically. Docker managers that check image tags can detect the updates. Set `MTG_IMAGE=ghcr.io/addison16/mtg-util:0.1.0` in `.env` to stay on a particular version.
+To update, back up first, then run those same two commands. Existing games remain in the named volume. Selecting `latest` makes new releases available to pull; it does not restart your running container automatically. Docker managers that check image tags can detect the updates. Set `MTG_IMAGE=ghcr.io/addison16/commanders-table:0.1.0` in `.env` to stay on a particular version.
 
 For public hosting, use HTTPS, `ALLOW_INSECURE_HTTP=false`, and a reverse proxy that supports WebSockets. See [deployment](docs/deployment.md) for configuration, Caddy, updates, verified backup/restore commands, and the publication workflow.
 

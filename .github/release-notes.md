@@ -1,4 +1,4 @@
-# MTG Util vX.Y.Z
+# Commander's Table vX.Y.Z
 
 Changes:
 

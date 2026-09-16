@@ -113,7 +113,9 @@ export function GameMenu({ onClose, open }: { onClose: () => void; open: (sheet:
             <Icon name="arrow" />
           </button>
         )}
-        <button onClick={() => downloadText(gameExport(game), `mtg-util-${game.id.slice(0, 8)}.json`)}>
+        <button
+          onClick={() => downloadText(gameExport(game), `commanders-table-${game.id.slice(0, 8)}.json`)}
+        >
           <Icon name="download" />
           <span>Export game backup</span>
           <Icon name="arrow" />

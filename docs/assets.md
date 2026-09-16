@@ -17,4 +17,4 @@ The interface uses original geometric SVG linework and CSS, with local font file
 
 Vite bundles the font subsets into the app shell, and the license notices ship under `/licenses/`. Dependency packages retain their own notices and licenses in the lockfile-resolved packages; choosing an application license does not replace those licenses.
 
-The application and original project assets use the [MIT License](../LICENSE). Third-party fonts retain their separate notices. `MTG Util` is a replaceable working name and an independent fan utility, without endorsement by Wizards of the Coast.
+The application and original project assets use the [MIT License](../LICENSE). Third-party fonts retain their separate notices. `Commander's Table` is an independent fan utility, without endorsement by Wizards of the Coast.

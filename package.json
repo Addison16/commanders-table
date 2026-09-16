@@ -1,5 +1,5 @@
 {
-  "name": "mtg-util",
+  "name": "commanders-table",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -67,11 +67,11 @@
   "author": "Addison16",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Addison16/MTG-Util.git"
+    "url": "git+https://github.com/Addison16/commanders-table.git"
   },
-  "homepage": "https://github.com/Addison16/MTG-Util#readme",
+  "homepage": "https://github.com/Addison16/commanders-table#readme",
   "bugs": {
-    "url": "https://github.com/Addison16/MTG-Util/issues"
+    "url": "https://github.com/Addison16/commanders-table/issues"
   },
   "license": "MIT"
 }

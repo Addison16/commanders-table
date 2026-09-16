@@ -54,7 +54,7 @@ export async function buildApp(options: { config?: Config; filename?: string; no
         throw new HttpError(403, 'Origin is not allowed. Check PUBLIC_ORIGIN for this site address.');
       if (!upgrade) {
         if (req.headers['x-mtg-client'] !== String(PROTOCOL))
-          throw new HttpError(426, 'Please update or reload MTG Util before continuing.');
+          throw new HttpError(426, "Please update or reload Commander's Table before continuing.");
         if (req.url !== '/api/session') {
           const token = req.cookies.mtg_guest,
             csrf = req.headers['x-csrf-token'];

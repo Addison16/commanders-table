@@ -471,7 +471,9 @@ export function RoomSheet({ onClose }: { onClose: () => void }) {
               <button
                 className="secondary full"
                 key={game.id}
-                onClick={() => downloadText(gameExport(game), `mtg-util-match-${game.id.slice(0, 8)}.json`)}
+                onClick={() =>
+                  downloadText(gameExport(game), `commanders-table-match-${game.id.slice(0, 8)}.json`)
+                }
               >
                 <Icon name="download" />
                 {new Date(game.timer.startedAt).toLocaleString()} · {game.order.length} players

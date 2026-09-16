@@ -1,5 +1,9 @@
 # Verification record
 
+## September 16 Commander's Table naming
+
+The chosen name is applied to the interface, browser/install metadata, exported filenames, source repository links, and published image configuration. Internal storage and protocol identifiers are unchanged for compatibility. TypeScript, ESLint, the production build, all 58 unit/integration checks, and eight focused Chromium/WebKit layout, saved-game, and accessibility journeys pass. Updated four/eight-player and sideways-table screenshots show the new heading; the 320-pixel layout remains within the viewport. The release workflows pass `actionlint`, and the downloadable Compose/environment example validates.
+
 ## September 16 public-release preparation
 
 The publication candidate passes TypeScript, ESLint, production build, and **58 Vitest checks**. The complete Chromium/WebKit suite passes **39 cases with 3 expected skips**. Production service-worker updates and real-origin offline reloads pass in both engines, as does the HTTPS/cookie/CSRF/WSS smoke check.

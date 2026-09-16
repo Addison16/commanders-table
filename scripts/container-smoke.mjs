@@ -107,7 +107,7 @@ try {
   assert.deepEqual((await request(`/rooms/${room.id}/command`, player, op)).body.receipt, changed.receipt);
   const assets = await fetch(origin);
   assert.equal(assets.status, 200);
-  assert.match(await assets.text(), /MTG Util/);
+  assert.match(await assets.text(), /Commander's Table/);
   docker('exec', name, ...nodeCommand, 'scripts/backup.mjs', '/data/verified-backup.sqlite');
   docker('stop', '--time', '5', name);
   docker('rm', name);

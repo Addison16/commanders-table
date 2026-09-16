@@ -4,16 +4,16 @@ The same Node process serves the app, API, and WebSockets. Use one instance with
 
 ## Configuration
 
-| Variable              | Default                                | Meaning                                                                            |
-| --------------------- | -------------------------------------- | ---------------------------------------------------------------------------------- |
-| `PUBLIC_ORIGIN`       | `http://localhost:8080`                | Exact browser origin, including a nonstandard port; no path, credentials, or query |
-| `ALLOW_INSECURE_HTTP` | `false` in the server/image            | Must explicitly be `true` for local/LAN HTTP; must be `false` for HTTPS            |
-| `PORT`                | `8080`                                 | HTTP listen port; retain 8080 inside the image for its health check                |
-| `DATA_DIR`            | `.mtg-data` locally, `/data` in Docker | SQLite database and sidecars                                                       |
-| `ROOM_TTL_DAYS`       | `30`                                   | Days since last committed room activity                                            |
-| `SESSION_TTL_DAYS`    | `90`                                   | Rolling guest-cookie/session lifetime                                              |
-| `TRUST_PROXY_HOPS`    | `0`                                    | Number of trusted reverse-proxy hops, 0–5                                          |
-| `MTG_IMAGE`           | `ghcr.io/addison16/mtg-util:latest`    | Pull-based image; use a version or digest to pin a release                         |
+| Variable              | Default                                     | Meaning                                                                            |
+| --------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `PUBLIC_ORIGIN`       | `http://localhost:8080`                     | Exact browser origin, including a nonstandard port; no path, credentials, or query |
+| `ALLOW_INSECURE_HTTP` | `false` in the server/image                 | Must explicitly be `true` for local/LAN HTTP; must be `false` for HTTPS            |
+| `PORT`                | `8080`                                      | HTTP listen port; retain 8080 inside the image for its health check                |
+| `DATA_DIR`            | `.mtg-data` locally, `/data` in Docker      | SQLite database and sidecars                                                       |
+| `ROOM_TTL_DAYS`       | `30`                                        | Days since last committed room activity                                            |
+| `SESSION_TTL_DAYS`    | `90`                                        | Rolling guest-cookie/session lifetime                                              |
+| `TRUST_PROXY_HOPS`    | `0`                                         | Number of trusted reverse-proxy hops, 0–5                                          |
+| `MTG_IMAGE`           | `ghcr.io/addison16/commanders-table:latest` | Pull-based image; use a version or digest to pin a release                         |
 
 Development uses port 5173 through Vite. The Compose examples deliberately default to local HTTP with `ALLOW_INSECURE_HTTP=true`; these examples do not change the server's secure default. `.env.example` is a development example. Set the actual origin explicitly when using it with a production server or Compose.
 
@@ -128,7 +128,7 @@ This fallback is an emulation-only verification image, not the published runtime
 
 ## Publishing a release
 
-Source is prepared for `Addison16/MTG-Util`, with images at `ghcr.io/addison16/mtg-util`. The workflow uses the repository owner's lowercase name, so a fork publishes under its own owner. Set `MTG_IMAGE` when consuming a fork's image. No Docker Hub account or stored registry password is needed: the workflow uses GitHub's scoped `GITHUB_TOKEN`.
+Source is prepared for `Addison16/commanders-table`, with images at `ghcr.io/addison16/commanders-table`. The workflow uses the repository owner's lowercase name, so a fork publishes under its own owner. Set `MTG_IMAGE` when consuming a fork's image. No Docker Hub account or stored registry password is needed: the workflow uses GitHub's scoped `GITHUB_TOKEN`.
 
 For the first publication, create the public source repository, select the application license, push `main`, and enable GitHub Actions. Push the initial tag after verification:
 
@@ -152,6 +152,6 @@ Release validation rejects a tag that differs from the package/lockfile version 
 
 Each release publishes a version tag and a full commit `sha-…` tag. Stable versions also update `stable` and `latest`; prereleases such as `v0.2.0-rc.1` do not move those aliases. Users pull the updated tag and recreate their container while keeping the same volume and origin, or use their Docker manager's update controls. Automatic unattended restarts require an updater configured by that server's operator.
 
-GitHub makes newly created personal container packages private initially, even when the source repository is public. After the first image publishes, open [the package settings](https://github.com/users/Addison16/packages/container/mtg-util/settings), select **Change visibility → Public**, and confirm. This is a one-time setting for the package; subsequent versions keep its visibility. See [GitHub's package visibility documentation](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility#configuring-visibility-of-packages-for-your-personal-account).
+GitHub makes newly created personal container packages private initially, even when the source repository is public. After the first image publishes, open [the package settings](https://github.com/users/Addison16/packages/container/commanders-table/settings), select **Change visibility → Public**, and confirm. This is a one-time setting for the package; subsequent versions keep its visibility. See [GitHub's package visibility documentation](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility#configuring-visibility-of-packages-for-your-personal-account).
 
 Verify both platform manifests and an unauthenticated pull before announcing availability. The digest in each GitHub release identifies the exact published image. Users can download the source ZIP/tarball directly from the release without installing Git.

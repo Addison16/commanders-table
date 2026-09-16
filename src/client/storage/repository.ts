@@ -63,7 +63,7 @@ export class Repository {
           if (!db.objectStoreNames.contains('records')) db.createObjectStore('records');
         },
         blocked: () => {
-          this.warning = 'Close older MTG Util tabs to finish the storage update.';
+          this.warning = "Close older Commander's Table tabs to finish the storage update.";
         },
       });
     } catch {
@@ -305,7 +305,7 @@ export function parseImport(text: string): Game {
     throw new Error('Backup is too large (maximum 2 MB)');
   const data = JSON.parse(text) as { format?: unknown; version?: unknown; game?: unknown };
   if (data.format !== 'mtg-util-game' || data.version !== 1)
-    throw new Error('Unsupported backup format/version. Use an MTG Util game export.');
+    throw new Error("Unsupported backup format/version. Use a Commander's Table game export.");
   return gameSchema.parse(data.game);
 }
 export function gameExport(game: Game) {
