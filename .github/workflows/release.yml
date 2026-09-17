@@ -50,7 +50,6 @@ jobs:
             type=semver,pattern={{version}}
             type=sha,format=long
             type=raw,value=stable,enable=${{ !contains(github.ref_name, '-') }}
-            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         id: build
         with:
@@ -61,6 +60,20 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=release
           cache-to: type=gha,mode=max,scope=release
+      - name: Publish latest for the package install command
+        if: ${{ !contains(github.ref_name, '-') }}
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A separate index makes latest the package page's default tag while
+          # retaining the exact platform images and versioned release digest.
+          docker buildx imagetools create \
+            --annotation 'index:org.opencontainers.image.ref.name=latest' \
+            --tag "$IMAGE_NAME:latest" \
+            "$IMAGE_NAME@$IMAGE_DIGEST"
       - name: Publish downloads and release notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
