@@ -2,9 +2,19 @@
 
 Entries record results and deployment state at the time of each check; historical `latest` digests and local-only status are not statements about the current release.
 
-## September 17 v0.1.4 release candidate
+## September 17 v0.1.4 publication
 
-The user explicitly requested publication of the latest app. The v0.1.4 candidate includes optional Scryfall commander backgrounds from the canceled v0.1.3 publication, unified player saves, automatic player dice defaults, the browser storage-abort fix, and the package-page `latest` install command. The existing v0.1.3 tag is preserved. The candidate passes all 128 unit/integration checks, ESLint, TypeScript, the production build, release validation and actionlint. Prior browser verification is recorded below; the hosted release gate, public release/downloads, and anonymous amd64/arm64 image checks are pending.
+The user explicitly requested publication of the latest app. The v0.1.4 source includes optional Scryfall commander backgrounds from the canceled v0.1.3 publication, unified player saves, automatic player dice defaults, the browser storage-abort fix, and the package-page `latest` install command. The existing v0.1.3 tag is preserved. Local checks passed all 128 unit/integration checks, ESLint, TypeScript, the production build, release validation and actionlint.
+
+[Main verification](https://github.com/Addison16/commanders-table/actions/runs/35213830032) and the [v0.1.4 release workflow](https://github.com/Addison16/commanders-table/actions/runs/35213830381) completed successfully for release commit `02667b8`. Both runs passed **128 unit/integration checks across 8 files**, **63 Chromium/WebKit browser cases with 3 expected skips**, production PWA offline/prompted-update checks in both engines, HTTPS/WSS proxy checks, and native amd64/arm64 container smoke tests.
+
+Anonymous registry checks verified `0.1.4` and `stable` at `sha256:a51f5a903ac2adbb6e78cd502e9530cba215e24ce5a88193c478e1b039d74a2f`. The dedicated `latest` index is `sha256:af5c1aadde22c2f1332fb2f6d886eb405045f3fbc51e3a9282057c7a6c06abae`; it has identical platform/attestation descriptors and a separate latest annotation for the package display. Both amd64 and arm64 images have the correct version, source revision and `PolyForm-Noncommercial-1.0.0` license label, with embedded license files matching the source. An actual anonymous Docker pull passed. The historical `0.1.0`, `0.1.1` and `0.1.2` image digests are unchanged.
+
+The public [v0.1.4 release](https://github.com/Addison16/commanders-table/releases/tag/v0.1.4) and its downloads were verified without authentication. Both `compose.yaml` and `docker.env.example` match the source exactly. The source archive includes the improvements and excludes private files. The package landing page's first install command is `docker pull ghcr.io/addison16/commanders-table:latest`.
+
+The anonymously pulled public image passed the isolated native x64 container smoke, covering startup, SQLite, room commands, receipt deduplication, recreation, backup and restore. The existing service then moved to public v0.1.4 at revision `02667b8`, keeping the same configuration and volume. Before/after checksums matched for all 38 rooms, 62 memberships, 195 events, zero snapshots and 65 sessions. A verified backup and the previous image were retained. Container and HTTPS health checks passed.
+
+A Chromium browser retained its exact saved game across the release and reload, including its 39-life score and blue player. A combined name, color and commander save committed one revision and survived another reload. The subsequent roll automatically selected that player and rendered matching blue dice, verified on the canvas. No physical-phone or installed-mode validation is implied.
 
 ## September 16 GitHub package install command
 
