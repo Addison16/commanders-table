@@ -1,4 +1,4 @@
-name: Refresh package latest tag
+name: Fix package latest display
 on:
   workflow_dispatch:
 permissions:
@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Refresh latest without rebuilding or changing its image
+      - name: Give latest its own display entry without rebuilding the images
         env:
           IMAGE_OWNER: ${{ github.repository_owner }}
           IMAGE_ACTOR: ${{ github.actor }}
@@ -48,14 +48,21 @@ jobs:
               content_type = response.headers['Content-Type']
               digest = response.headers['Docker-Content-Digest']
           assert 'sha256:' + hashlib.sha256(manifest).hexdigest() == digest
-          assert json.loads(manifest).get('manifests'), 'Expected the existing multiarchitecture image index'
-          # A direct PUT is intentional: Docker skips already-identical tags.
+          index = json.loads(manifest)
+          assert index.get('manifests'), 'Expected the existing multiarchitecture image index'
+          # GitHub keeps the initial display tag for a given index digest. Give
+          # latest its own index metadata while retaining every image descriptor.
+          index.setdefault('annotations', {})['org.opencontainers.image.ref.name'] = 'latest'
+          display_manifest = json.dumps(index, separators=(',', ':')).encode()
+          display_digest = 'sha256:' + hashlib.sha256(display_manifest).hexdigest()
           put_headers = {**headers, 'Content-Type': content_type}
-          with urllib.request.urlopen(urllib.request.Request(url, data=manifest, headers=put_headers, method='PUT'), timeout=30) as response:
+          with urllib.request.urlopen(urllib.request.Request(url, data=display_manifest, headers=put_headers, method='PUT'), timeout=30) as response:
               assert response.status == 201
-              assert response.headers['Docker-Content-Digest'] == digest
+              assert response.headers['Docker-Content-Digest'] == display_digest
           with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30) as response:
-              assert response.read() == manifest
+              after = response.read()
+              assert after == display_manifest
+              assert json.loads(after)['manifests'] == json.loads(manifest)['manifests']
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
-              summary.write('Refreshed `' + image + ':latest` with its unchanged digest `' + digest + '`.\n')
-          print('Refreshed latest; the multiarchitecture image and digest are unchanged.')
+              summary.write('Updated `' + image + ':latest` package metadata from `' + digest + '` to `' + display_digest + '`. All platform images and their layers are unchanged.\n')
+          print('Latest has its own display entry; all platform images and layers are unchanged.')
