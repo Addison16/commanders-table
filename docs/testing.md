@@ -1,10 +1,16 @@
 # Verification record
 
-## September 16 v0.1.1 licensing preparation
+## September 16 v0.1.1 licensing release
 
 The v0.1.1 release uses MIT with Commons Clause for the application, documentation and original assets. The package and root lockfile point to `LICENSE`; both the Dockerfile and release metadata explicitly use `LicenseRef-MIT-Commons-Clause-1.0`. The release validator, `actionlint`, targeted formatting checks and `git diff --check` pass. A comparison with the previous lockfile confirms every third-party dependency entry is unchanged. Runtime code, public assets, tests and schema are unchanged, and the existing v0.1.0 tag still contains its original MIT license.
 
-Hosted release verification and public image checks are pending publication. The records below describe their respective historical versions; the v0.1.0 MIT evidence remains valid for that release.
+[Main verification](https://github.com/Addison16/commanders-table/actions/runs/35165575775) and the [v0.1.1 release workflow](https://github.com/Addison16/commanders-table/actions/runs/35165571310) both passed. The release gate includes 58 unit/integration checks, 39 Chromium/WebKit journeys with 3 expected skips, production offline/update and HTTPS checks, and native amd64/arm64 container smoke tests.
+
+Anonymous registry requests verified matching `0.1.1`, `latest` and `stable` tags at `sha256:27fd6c365bf002c50f7eb4b3440abc2d0b3a33ead0f7cffd47044734461c9b05`. Both platform manifests have the intended OCI license label, and their embedded `/app/LICENSE` files match the source byte for byte. An empty Docker credential directory successfully pulled the public image. Public release notes contain the licensing change and correct digest; both setup downloads match their source files. The historical `0.1.0` image retains its original digest, and its source license remains MIT.
+
+The live service runs v0.1.1 with the same HTTPS origin, Compose project and database volume. A verified `before-license-0.1.1-20260916.sqlite` backup was copied out before recreation; `commanders-table:before-license-20260916` retains the previous image. Database checksums matched for all 38 rooms, 62 memberships, 194 events, zero snapshots and 65 session identities/revocation flags. The container is healthy, and a Chromium visit verified HTTPS health, the Commander's Table title and the initial game options.
+
+The records below describe their respective historical versions; the v0.1.0 MIT evidence remains valid for that release.
 
 ## September 16 public release and deployment
 
