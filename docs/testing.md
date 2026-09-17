@@ -1,5 +1,11 @@
 # Verification record
 
+## September 16 v0.1.1 licensing preparation
+
+The v0.1.1 release uses MIT with Commons Clause for the application, documentation and original assets. The package and root lockfile point to `LICENSE`; both the Dockerfile and release metadata explicitly use `LicenseRef-MIT-Commons-Clause-1.0`. The release validator, `actionlint`, targeted formatting checks and `git diff --check` pass. A comparison with the previous lockfile confirms every third-party dependency entry is unchanged. Runtime code, public assets, tests and schema are unchanged, and the existing v0.1.0 tag still contains its original MIT license.
+
+Hosted release verification and public image checks are pending publication. The records below describe their respective historical versions; the v0.1.0 MIT evidence remains valid for that release.
+
 ## September 16 public release and deployment
 
 [Release v0.1.0](https://github.com/Addison16/commanders-table/releases/tag/v0.1.0) is published under MIT. Both [main verification](https://github.com/Addison16/commanders-table/actions/runs/35163472611) and the [release workflow](https://github.com/Addison16/commanders-table/actions/runs/35163473158) passed: 58 unit/integration checks, 39 Chromium/WebKit journeys with 3 expected skips, production PWA updates and origin-outage reloads, HTTPS/cookie/CSRF/WSS checks, and native amd64/arm64 container smoke tests.

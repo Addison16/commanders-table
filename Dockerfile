@@ -14,7 +14,7 @@ ENV NODE_ENV=production PORT=8080 DATA_DIR=/data ALLOW_INSECURE_HTTP=false
 LABEL org.opencontainers.image.title="Commander's Table" \
       org.opencontainers.image.description="A Magic life counter for one device or shared rooms" \
       org.opencontainers.image.source="https://github.com/Addison16/commanders-table" \
-      org.opencontainers.image.licenses="MIT"
+      org.opencontainers.image.licenses="LicenseRef-MIT-Commons-Clause-1.0"
 WORKDIR /app
 RUN mkdir -p /data && chown node:node /data
 COPY --from=build --chown=node:node /app/package.json /app/package-lock.json ./

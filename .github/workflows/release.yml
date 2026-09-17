@@ -44,6 +44,8 @@ jobs:
         with:
           images: ${{ steps.image.outputs.name }}
           flavor: latest=false
+          labels: |
+            org.opencontainers.image.licenses=LicenseRef-MIT-Commons-Clause-1.0
           tags: |
             type=semver,pattern={{version}}
             type=sha,format=long

@@ -6,9 +6,9 @@ The interface uses original geometric SVG linework and CSS, with local font file
 | ------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
 | Inter, Latin 400/500/600/700                | Inter Project Authors, distributed by `@fontsource/inter`                      | SIL Open Font License 1.1; [included notice](../public/licenses/Inter-OFL.txt)              |
 | Cormorant Garamond, Latin 500 normal/italic | Cormorant Project Authors, distributed by `@fontsource/cormorant-garamond`     | SIL Open Font License 1.1; [included notice](../public/licenses/Cormorant-Garamond-OFL.txt) |
-| Brand sigil / favicon                       | Original SVG for this project                                                  | `public/icon.svg`; [MIT License](../LICENSE)                                                |
-| Install icons                               | Raster renderings of the original brand SVG                                    | `public/icon-192.png`, `public/icon-512.png`; [MIT License](../LICENSE)                     |
-| UI icons and seat sigils                    | Original SVG paths/components                                                  | `src/client/components/ui.tsx`; [MIT License](../LICENSE)                                   |
+| Brand sigil / favicon                       | Original SVG for this project                                                  | `public/icon.svg`; [MIT with Commons Clause](../LICENSE)                                   |
+| Install icons                               | Raster renderings of the original brand SVG                                    | `public/icon-192.png`, `public/icon-512.png`; [MIT with Commons Clause](../LICENSE)         |
+| UI icons and seat sigils                    | Original SVG paths/components                                                  | `src/client/components/ui.tsx`; [MIT with Commons Clause](../LICENSE)                      |
 | Textures, glow and reveal effects           | CSS authored for this project                                                  | `src/client/styles/app.css`, `styles/dice.css`                                              |
 | Dice solids and animation                   | Original 3D geometry projected with Canvas2D; no downloaded meshes or textures | `src/client/dice/geometry.ts`, `DiceCanvas.tsx`, `DiceRoll.tsx`                             |
 | Optional sound cues                         | Synthesized tones and dice impacts, no recordings                              | `src/client/components/feedback.ts`                                                         |
@@ -17,4 +17,6 @@ The interface uses original geometric SVG linework and CSS, with local font file
 
 Vite bundles the font subsets into the app shell, and the license notices ship under `/licenses/`. Dependency packages retain their own notices and licenses in the lockfile-resolved packages; choosing an application license does not replace those licenses.
 
-The application and original project assets use the [MIT License](../LICENSE). Third-party fonts retain their separate notices. `Commander's Table` is an independent fan utility, without endorsement by Wizards of the Coast.
+Beginning with v0.1.1, the application and original project assets use [MIT with Commons Clause](../LICENSE). The source remains available for use, modification and free redistribution, subject to the license notices and its restriction on selling the software as defined in the Commons Clause. This is source-available licensing, not OSI open source. The previously published v0.1.0 remains under MIT; rights already granted for that version are retained. Third-party fonts and dependencies keep their separate licenses.
+
+`Commander's Table` is an independent fan utility, without endorsement by Wizards of the Coast.

@@ -1,6 +1,6 @@
 {
   "name": "commanders-table",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "engines": {
@@ -73,5 +73,5 @@
   "bugs": {
     "url": "https://github.com/Addison16/commanders-table/issues"
   },
-  "license": "MIT"
+  "license": "SEE LICENSE IN LICENSE"
 }

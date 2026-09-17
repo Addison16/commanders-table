@@ -4,6 +4,8 @@ A mobile-first companion for a physical Magic table. Track one to eight players 
 
 Get the [latest release](https://github.com/Addison16/commanders-table/releases/latest) or follow the [Docker setup](#docker) to host your own table.
 
+**Source-available under MIT with Commons Clause:** free to use, modify and share, with a restriction on resale and paid hosting. See [licensing](#publication-and-project-scope), including the earlier v0.1.0 MIT release.
+
 Commander damage belongs to individual commanders, including partners and your own commanders. Life, poison, cast counts, optional turns, timers, dice, and first-player selection share the same game model in both modes. Warnings are reminders; elimination and rules decisions stay with the players.
 
 | Four-player table                                             | Eight-player table                                              |
@@ -78,7 +80,7 @@ PUBLIC_ORIGIN=http://localhost:8080 ALLOW_INSECURE_HTTP=true \
 
 For LAN play, set `PUBLIC_ORIGIN` to the server's LAN address and use that address on every device. The container runs as non-root, serves port 8080, and stores SQLite plus its WAL sidecars in the named volume `mtg-util_mtg-util-data`. Keep the same Compose project name and volume when updating. Use local disk storage for this single-instance database.
 
-Release images use **`ghcr.io/addison16/commanders-table`**, with `latest` and `stable` following stable releases and version tags such as `0.1.0` for a fixed release. Images support standard 64-bit PCs/servers (`amd64`) and 64-bit ARM machines (`arm64`). A tag becomes available after its release workflow succeeds.
+Release images use **`ghcr.io/addison16/commanders-table`**, with `latest` and `stable` following stable releases and version tags such as `0.1.1` for a fixed release. Images support standard 64-bit PCs/servers (`amd64`) and 64-bit ARM machines (`arm64`). A tag becomes available after its release workflow succeeds.
 
 Download **compose.yaml** and **docker.env.example** from [Releases](https://github.com/Addison16/commanders-table/releases). Put them in a folder, copy `docker.env.example` to `.env`, and set `PUBLIC_ORIGIN` to the exact address your phones will open—for example, `http://192.168.1.50:8080`. The source checkout keeps this example at `.env.docker.example`. Then run:
 
@@ -87,7 +89,7 @@ docker compose -p mtg-util -f compose.yaml pull
 docker compose -p mtg-util -f compose.yaml up -d
 ```
 
-To update, back up first, then run those same two commands. Existing games remain in the named volume. Selecting `latest` makes new releases available to pull; it does not restart your running container automatically. Docker managers that check image tags can detect the updates. Set `MTG_IMAGE=ghcr.io/addison16/commanders-table:0.1.0` in `.env` to stay on a particular version.
+To update, back up first, then run those same two commands. Existing games remain in the named volume. Selecting `latest` makes new releases available to pull; it does not restart your running container automatically. Docker managers that check image tags can detect the updates. Set `MTG_IMAGE=ghcr.io/addison16/commanders-table:0.1.1` in `.env` to stay on a particular version.
 
 For public hosting, use HTTPS, `ALLOW_INSECURE_HTTP=false`, and a reverse proxy that supports WebSockets. See [deployment](docs/deployment.md) for configuration, Caddy, updates, verified backup/restore commands, and the publication workflow.
 
@@ -119,7 +121,11 @@ See [testing evidence and the physical-device checklist](docs/testing.md), [arch
 
 ## Publication and project scope
 
-Application code and original artwork are available under the [MIT License](LICENSE). Bundled fonts retain their SIL Open Font License notices; see [asset licenses](docs/assets.md).
+Starting with v0.1.1, application code, documentation, and original artwork are available under [MIT with Commons Clause v1.0](LICENSE). You may use, modify, self-host, and redistribute the app for free, retaining the license notices. Ordinary business use is allowed, such as using the tracker at a game store.
+
+The Commons Clause prohibits selling the app or products/services whose value comes entirely or substantially from its functionality. This includes paid hosting and qualifying paid support or consulting; rebranding or making small changes does not remove the restriction. These terms are **source-available, not OSI open source**. See the [Commons Clause explanation](https://commonsclause.com/) and the full [license](LICENSE) for the scope of the restriction.
+
+**Earlier MIT releases, including v0.1.0, keep their original permissions.** This change does not retroactively restrict those releases or code available under their MIT terms. Bundled fonts and dependencies retain their separate licenses; see [asset licenses](docs/assets.md).
 
 The release workflow verifies the app, Chromium/WebKit journeys, offline updates, HTTPS/WebSockets, and native amd64/arm64 containers before publishing GHCR images and GitHub release downloads. Maintainers publish updates by bumping the package version and pushing a matching `vX.Y.Z` tag; see [publishing a release](docs/deployment.md#publishing-a-release).
 
