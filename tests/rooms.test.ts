@@ -9,6 +9,7 @@ import { openDatabase } from '../src/server/database.js';
 import { hash, RoomService } from '../src/server/service.js';
 import { readConfig } from '../src/server/config.js';
 import { buildApp } from '../src/server/app.js';
+import type { CommanderCard } from '../src/shared/cards.js';
 const config = readConfig({
   PUBLIC_ORIGIN: 'http://localhost:5173',
   ALLOW_INSECURE_HTTP: 'true',
@@ -72,6 +73,75 @@ function fixture(filename = ':memory:', count = 4) {
   };
 }
 describe('authoritative room transactions', () => {
+  it('applies approved commander artwork to existing identities and protects each player’s artwork', () => {
+    const f = fixture();
+    const seat = f.room.seats[0].id;
+    const original = Object.values(f.room.game!.commanders).find((commander) => commander.ownerId === seat)!;
+    const card: CommanderCard = {
+      id: randomUUID(),
+      name: 'A Legendary Commander With A Name Longer Than Forty Characters',
+      imageUrl: 'https://cards.scryfall.io/art_crop/front/1/2/12345678-1234-4234-8234-123456789abc.jpg',
+      scryfallUrl: 'https://scryfall.com/card/test/1/example-commander',
+      artist: 'Example Artist',
+    };
+    f.run(f.host.hash, { type: 'cast', commanderId: original.id });
+    f.run(f.host.hash, {
+      type: 'damage',
+      playerId: seat,
+      commanderId: original.id,
+      amount: 5,
+      subtractLife: true,
+    });
+    const before = f.svc.view(f.room.id, f.host.hash).game!;
+    const profile = { name: 'Alex', commanders: [card.name, 'Custom partner'], commanderCards: [card, null] };
+    expect(f.run(f.guest.hash, { type: 'requestSeat', playerId: seat, profile }).receipt.ok).toBe(true);
+    expect(f.svc.view(f.room.id, f.guest.hash).me.seatProfile).toEqual(profile);
+    expect(f.svc.view(f.room.id, f.host.hash).game!.commanders).toEqual(before.commanders);
+    expect(
+      f.run(f.host.hash, { type: 'approve', memberId: f.g.me.id, playerId: seat, replace: false }).receipt.ok,
+    ).toBe(true);
+    const approved = f.svc.view(f.room.id, f.guest.hash).game!;
+    expect(approved.commanders[original.id]).toEqual({
+      ...before.commanders[original.id],
+      label: card.name,
+      card,
+    });
+    expect(approved.damageReceived).toEqual(before.damageReceived);
+    expect(approved.players[seat].life).toBe(35);
+    const ownCommand = { type: 'commanderName', commanderId: original.id, label: 'A custom name' } as const;
+    expect(f.run(f.guest.hash, ownCommand).receipt.ok).toBe(true);
+    expect(f.svc.view(f.room.id, f.host.hash).game!.commanders[original.id]).not.toHaveProperty('card');
+    expect(f.run(f.guest.hash, { ...ownCommand, label: card.name, card }).receipt.ok).toBe(true);
+    expect(f.svc.view(f.room.id, f.host.hash).game!.commanders[original.id].card).toEqual(card);
+    expect(f.run(f.guest.hash, { type: 'undo' }).receipt.ok).toBe(true);
+    expect(f.svc.view(f.room.id, f.host.hash).game!.commanders[original.id]).not.toHaveProperty('card');
+    const otherCommander = Object.values(approved.commanders).find(
+      (commander) => commander.ownerId !== seat,
+    )!;
+    f.run(f.host.hash, { type: 'policy', everyoneEdits: true });
+    expect(
+      f.run(f.guest.hash, { ...ownCommand, commanderId: otherCommander.id, label: card.name, card }).receipt
+        .ok,
+    ).toBe(false);
+    expect(f.svc.view(f.room.id, f.host.hash).game!.commanders[otherCommander.id]).toEqual(otherCommander);
+    expect(f.run(f.guest.hash, { ...ownCommand, label: card.name, card }).receipt.ok).toBe(true);
+    f.run(f.host.hash, { type: 'rematch' });
+    const rematch = f.svc.view(f.room.id, f.guest.hash).game!;
+    expect(rematch.commanders[original.id]).toEqual({ ...approved.commanders[original.id], casts: 0 });
+    f.run(f.host.hash, { type: 'release', memberId: f.g.me.id });
+    f.run(f.other.hash, {
+      type: 'requestSeat',
+      playerId: seat,
+      profile: { name: 'Sam', commanders: ['Different commander'] },
+    });
+    expect(
+      f.run(f.host.hash, { type: 'approve', memberId: f.o.me.id, playerId: seat, replace: false }).receipt.ok,
+    ).toBe(true);
+    expect(f.svc.view(f.room.id, f.other.hash).game!.commanders[original.id]).toEqual({
+      ...original,
+      label: 'Different commander',
+    });
+  });
   it('keeps player choices pending until approval, then applies them once without resetting play', () => {
     const f = fixture(),
       seat = f.room.seats[0].id;
@@ -250,7 +320,14 @@ describe('authoritative room transactions', () => {
     const svc = new RoomService(db, config, f.svc.now);
     expect(db.pragma('user_version', { simple: true })).toBe(2);
     expect(svc.view(f.room.id, f.host.hash)).toEqual(original);
-    const profile = { name: 'Alex', commanders: ['Atraxa'] };
+    const card: CommanderCard = {
+      id: randomUUID(),
+      name: 'Atraxa',
+      imageUrl: 'https://cards.scryfall.io/art_crop/front/1/2/12345678-1234-4234-8234-123456789abc.jpg',
+      scryfallUrl: 'https://scryfall.com/card/test/1/atraxa',
+      artist: 'Example Artist',
+    };
+    const profile = { name: 'Alex', commanders: ['Atraxa'], commanderCards: [card] };
     expect(
       svc.execute(f.guest.hash, {
         protocolVersion: 1,

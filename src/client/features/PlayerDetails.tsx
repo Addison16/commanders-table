@@ -4,6 +4,9 @@ import { act, canEdit, isHost, useApp, updateProfile } from '../app/store.js';
 import { ask, Field, Icon, Sheet, Toggle } from '../components/ui.js';
 import { HoldButton } from '../components/HoldButton.js';
 import { facesAcross } from './TableLayout.js';
+import { CommanderInput } from '../components/CommanderInput.js';
+import { CommanderCredits } from '../components/CommanderArtwork.js';
+import type { CommanderCard } from '../../shared/cards.js';
 
 // Untouched fields follow the live game. Once edited, a field keeps its draft
 // through local steps and remote updates until that draft is submitted.
@@ -107,6 +110,11 @@ export function PlayerDetails({ playerId, onClose }: { playerId: string; onClose
     (isHost() || room?.me.seatId === playerId);
   return (
     <Sheet title={player.name} description="Your life, your legends, your next move." onClose={onClose}>
+      <CommanderCredits
+        cards={Object.values(game.commanders)
+          .filter((c) => c.ownerId === playerId && c.card)
+          .map((c) => c.card!)}
+      />
       <details className="edit-player">
         <summary>
           <Icon name="settings" />
@@ -370,23 +378,29 @@ function CommanderName({
   number: number;
   disabled: boolean;
 }) {
-  const [label, setLabel, resetLabel] = useLiveDraft(commander.label);
+  const [draft, setDraft] = useState<{ label: string; card: CommanderCard | null }>();
+  const selection = draft ?? { label: commander.label, card: commander.card ?? null };
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        void act({ type: 'commanderName', commanderId: commander.id, label }).then(resetLabel);
+        void act({
+          type: 'commanderName',
+          commanderId: commander.id,
+          label: selection.label,
+          card: selection.card,
+        }).then(() => {
+          setDraft((current) => (current === draft ? undefined : current));
+        });
       }}
     >
-      <Field label={`Commander ${number} name`}>
-        <input
-          name="label"
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          maxLength={40}
-          required
-        />
-      </Field>
+      <CommanderInput
+        label={`Commander ${number} name`}
+        value={selection.label}
+        card={selection.card}
+        disabled={disabled}
+        onChange={(label, card) => setDraft({ label, card })}
+      />
       <button className="secondary full" disabled={disabled}>
         Save commander {number}
       </button>

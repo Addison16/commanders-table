@@ -1,6 +1,6 @@
 # Assets and licenses
 
-The interface uses original geometric SVG linework and CSS, with local font files. It includes no Wizards of the Coast card art, mana symbols, logos, scanned cards, or third-party illustration packs. No remote asset service is required during play.
+The interface uses original geometric SVG linework and CSS, with local font files. No card-art collection is bundled. Players may optionally select commander artwork supplied by Scryfall; ordinary life tracking and manually entered commander names work without it. Card artwork remains the property of its respective rights holders and is not covered by this project’s license.
 
 | Asset                                       | Origin                                                                                                        | License / location                                                                          |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
@@ -20,3 +20,11 @@ Vite bundles the font subsets into the app shell, and the license notices ship u
 Beginning with v0.1.2, the application, documentation, and original project assets use [PolyForm Noncommercial License 1.0.0](../LICENSE). Noncommercial use, modification, self-hosting, and sharing are permitted under its terms and required notice; commercial use is not licensed. This is source-available licensing, not OSI open source. The previously published [v0.1.0 remains MIT](https://github.com/Addison16/commanders-table/blob/v0.1.0/LICENSE) and [v0.1.1 remains MIT with Commons Clause](https://github.com/Addison16/commanders-table/blob/v0.1.1/LICENSE); their original permissions are not revoked. Third-party fonts and dependencies keep their separate licenses.
 
 `Commander's Table` is an independent fan utility, without endorsement by Wizards of the Coast.
+
+## Optional commander artwork
+
+Scryfall provides card metadata and its dedicated `art_crop` images. The app searches through a bounded, rate-limited server cache, uses only trusted Scryfall card/image URLs, and retains selected public metadata in saved games. Player details and the selection preview identify the artist, link to Scryfall, and show the Wizards of the Coast copyright. Two commanders can share a panel. Images use their natural colors and aspect ratio; only the art crop is displayed behind the counter controls.
+
+The production service worker keeps a separate, bounded cache for viewed public art images; private game APIs are never cached. New searches and uncached images require internet access. Missing art leaves the normal counter usable. See [Scryfall API usage and attribution](https://scryfall.com/docs/api), [image formats](https://scryfall.com/docs/api/images), and [rate limits](https://scryfall.com/docs/api/rate-limits).
+
+Commander's Table is unofficial Fan Content permitted under the [Fan Content Policy](https://company.wizards.com/fancontentpolicy). Not approved or endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. © Wizards of the Coast. This notice also appears in display/browser settings, with per-card credits in the app.

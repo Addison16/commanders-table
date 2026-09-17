@@ -1,10 +1,12 @@
-import { memo, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { warnings } from '../../shared/game.js';
 import { useApp, act, updateProfile } from '../app/store.js';
 import { Icon, Sigil } from '../components/ui.js';
 import { HoldButton } from '../components/HoldButton.js';
 import { facesAcross } from './TableLayout.js';
+import { CommanderBackdrop } from '../components/CommanderArtwork.js';
+import type { CommanderCard } from '../../shared/cards.js';
 
 const PlayerTile = memo(function PlayerTile({
   id,
@@ -49,9 +51,16 @@ const PlayerTile = memo(function PlayerTile({
         initiative: game.markers.initiative === id,
         turn: game.settings.turnTracking && game.turn.playerId === id ? game.turn.number : 0,
         presence: member ? Boolean(member.connected) : null,
+        artwork: JSON.stringify(
+          Object.values(game.commanders)
+            .filter((c) => c.ownerId === id && c.card)
+            .map((c) => c.card),
+        ),
       };
     }),
   );
+  const artwork = player?.artwork ?? '[]';
+  const cards = useMemo(() => JSON.parse(artwork) as CommanderCard[], [artwork]);
   const [delta, setDelta] = useState(0);
   const life = player?.life ?? 0;
   const last = useRef(life);
@@ -74,10 +83,11 @@ const PlayerTile = memo(function PlayerTile({
       style={span ? ({ '--seat-span': span } as CSSProperties) : undefined}
     >
       <div
-        className={`tile-content ${flipped && !myView ? 'flipped' : ''}`}
+        className={`tile-content ${flipped && !myView ? 'flipped' : ''} ${cards.length ? 'with-commander-art' : ''}`}
         data-facing={flipped && !myView ? 'across' : 'near'}
       >
         <Sigil index={index} className="tile-sigil" />
+        <CommanderBackdrop cards={cards} />
         <button
           className="player-heading"
           onClick={() => openPlayer(id)}
@@ -131,7 +141,21 @@ const PlayerTile = memo(function PlayerTile({
           ) : flags.length ? (
             <span className="warning-badge">! {flags}</span>
           ) : (
-            <span className="life-caption">LIFE TOTAL</span>
+            <span
+              className="life-caption"
+              title={
+                cards.length
+                  ? cards
+                      .map(
+                        (card) =>
+                          `Art by ${card.artist} · © Wizards of the Coast · Source: Scryfall. Credits in player details.`,
+                      )
+                      .join(' / ')
+                  : undefined
+              }
+            >
+              {cards.length ? 'ART · SCRYFALL' : 'LIFE TOTAL'}
+            </span>
           )}
           <span className="tile-trackers">
             {player.showPoison && player.poison > 0 && (

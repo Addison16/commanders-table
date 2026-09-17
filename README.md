@@ -46,6 +46,7 @@ PUBLIC_ORIGIN=http://localhost:8080 ALLOW_INSECURE_HTTP=true npm start
 - For a phone in the middle of four players, choose **Game menu → Table layout → Shared table** and lay it sideways. The top two counters face the far side, the bottom two face you, and larger +/− areas are easy to reach. This preference stays on your phone; individual seats can still be flipped in their details. Choose **All facing me** to return to the original layout.
 - To share, choose **Create room**, choose a table size, and open **Live room** for the code and QR. Friends enter their name, choose their own player name and one or two commanders in the lobby, then request a seat. The host previews their choices and taps **Approve seat**; the names appear on everyone's board without resetting any totals. Commander names can be left for later, and commander fields stay hidden when those tools are off. Pending choices survive refresh and can be revised with **Update request**. Pending guests cannot see the game.
 - Hosts control every seat. Approved guests control their own numerical trackers, player name, and commander labels, and can roll dice. The host may enable **Friends can edit every seat** for numerical adjustments; this does not grant administration or another player's name edits. **My seat** makes a guest's controls larger.
+- **Commander artwork** is optional in setup, joining, and **Edit player & commanders**. Type a name and choose a suggested card, or paste a Scryfall card link and tap **Find artwork**. Save the commander to use its art as the player background; partners share the panel. Artwork follows approved guests, saved games and rematches. **Remove artwork** restores the plain background. Player details show artist credits and a link to the full card. Manual names still work without artwork or internet.
 - **Utilities** rolls polished 3D dice over the life-counter board, with rounded edges/corners, subtle grain and engraved numbers. **Roll for** matches the pearl body to a player’s seat color; shared guests default to their own seat. Table rolls keep the original ivory finish. Rerolls, percentile pairs and replays keep the selected player. The result face lands centered and upright. Each player gets a matching colored die in **d20 for everyone**; tied leaders roll again before the starting player is revealed. Every approved room member can roll for the table. Results are saved before animation; skipping or reopening a result never rolls again. Sound effects add a dice clatter; **Display & preferences → Test dice sound** previews it.
 - **Turn tracking** is off by default. Enable it in Utilities to show a compact **Next turn** button beside Undo; shared turn controls belong to the host. The game timer is also in Utilities. The former Extra trackers section has been removed.
 - **New game** asks **One phone** or **Multiple phones** again. Tap the **Commander's Table** logo for Home and the last ten unfinished local/shared games. **Resume** reopens the original local game with its names, totals, and history, or reconnects to a shared room using the current guest cookie.
@@ -80,7 +81,7 @@ PUBLIC_ORIGIN=http://localhost:8080 ALLOW_INSECURE_HTTP=true \
 
 For LAN play, set `PUBLIC_ORIGIN` to the server's LAN address and use that address on every device. The container runs as non-root, serves port 8080, and stores SQLite plus its WAL sidecars in the named volume `mtg-util_mtg-util-data`. Keep the same Compose project name and volume when updating. Use local disk storage for this single-instance database.
 
-Release images use **`ghcr.io/addison16/commanders-table`**, with `latest` and `stable` following stable releases and version tags such as `0.1.2` for a fixed release. Images support standard 64-bit PCs/servers (`amd64`) and 64-bit ARM machines (`arm64`). A tag becomes available after its release workflow succeeds.
+Release images use **`ghcr.io/addison16/commanders-table`**, with `latest` and `stable` following stable releases and version tags such as `0.1.3` for a fixed release. Images support standard 64-bit PCs/servers (`amd64`) and 64-bit ARM machines (`arm64`). A tag becomes available after its release workflow succeeds.
 
 Download **compose.yaml** and **docker.env.example** from [Releases](https://github.com/Addison16/commanders-table/releases). Put them in a folder, copy `docker.env.example` to `.env`, and set `PUBLIC_ORIGIN` to the exact address your phones will open—for example, `http://192.168.1.50:8080`. The source checkout keeps this example at `.env.docker.example`. Then run:
 
@@ -89,13 +90,15 @@ docker compose -p mtg-util -f compose.yaml pull
 docker compose -p mtg-util -f compose.yaml up -d
 ```
 
-To update, back up first, then run those same two commands. Existing games remain in the named volume. Selecting `latest` makes new releases available to pull; it does not restart your running container automatically. Docker managers that check image tags can detect the updates. Set `MTG_IMAGE=ghcr.io/addison16/commanders-table:0.1.2` in `.env` to stay on a particular version.
+To update, back up first, then run those same two commands. Existing games remain in the named volume. Selecting `latest` makes new releases available to pull; it does not restart your running container automatically. Docker managers that check image tags can detect the updates. Set `MTG_IMAGE=ghcr.io/addison16/commanders-table:0.1.3` in `.env` to stay on a particular version.
 
 For public hosting, use HTTPS, `ALLOW_INSECURE_HTTP=false`, and a reverse proxy that supports WebSockets. See [deployment](docs/deployment.md) for configuration, Caddy, updates, verified backup/restore commands, and the publication workflow.
 
 ## Offline and installation
 
 One-device play works without a guest session or network connection. A production build can reopen offline after its service worker has installed through HTTPS or localhost. Plain HTTP on a LAN supports core play and saving, but is not a secure context for offline installation or wake lock.
+
+Looking up new artwork requires internet access. Selected card metadata is saved with the game. On an installed production app, viewed Scryfall art crops are cached separately (up to 64 images for 30 days); uncached or unavailable artwork falls back to the normal panel while counters keep working.
 
 On iPhone Safari, use **Share → Add to Home Screen**. On Android, use the browser's install/home-screen menu. Installed apps and ordinary browser tabs can have separate storage. Settings explain optional fullscreen, vibration, sound, and keep-awake behavior. System reduced motion always takes priority. Updates wait for **Save & update**, then confirmation; they do not force a reload during play.
 

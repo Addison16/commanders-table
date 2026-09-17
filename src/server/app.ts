@@ -11,8 +11,11 @@ import { idSchema, nameSchema, PROTOCOL } from '../shared/schema.js';
 import { readConfig, type Config } from './config.js';
 import { openDatabase } from './database.js';
 import { csrfFor, hash, HttpError, RoomService, validCsrf } from './service.js';
+import { cardLookup, CardLookupError, type CardLookupService } from './cards.js';
 
-export async function buildApp(options: { config?: Config; filename?: string; now?: () => number } = {}) {
+export async function buildApp(
+  options: { config?: Config; filename?: string; now?: () => number; cards?: CardLookupService } = {},
+) {
   const config = options.config ?? readConfig();
   const db = openDatabase(options.filename ?? join(config.dataDir, 'mtg-util.sqlite'));
   const service = new RoomService(db, config, options.now);
@@ -45,7 +48,7 @@ export async function buildApp(options: { config?: Config; filename?: string; no
     if (config.production)
       reply.header(
         'Content-Security-Policy',
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cards.scryfall.io; font-src 'self'; connect-src 'self' https://cards.scryfall.io; worker-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
       );
     if (req.url.startsWith('/api/')) reply.header('Cache-Control', 'no-store');
     const upgrade = req.headers.upgrade?.toLowerCase() === 'websocket';
@@ -65,6 +68,7 @@ export async function buildApp(options: { config?: Config; filename?: string; no
     }
   });
   app.setErrorHandler((err, _req, reply) => {
+    if (err instanceof CardLookupError && err.retryAfter) reply.header('Retry-After', err.retryAfter);
     if (err instanceof ZodError)
       return reply
         .code(400)
@@ -80,6 +84,14 @@ export async function buildApp(options: { config?: Config; filename?: string; no
     db.prepare('SELECT count(*) AS n FROM sqlite_master WHERE type=?').get('table');
     return { ok: true, protocolVersion: PROTOCOL };
   });
+  const cards = options.cards ?? cardLookup;
+  const cardQuery = z.object({ q: z.string().trim().max(512).default('') });
+  app.get('/api/cards/suggest', { config: { rateLimit: { max: 90, timeWindow: '1 minute' } } }, async (req) =>
+    cards.suggest(cardQuery.parse(req.query).q),
+  );
+  app.get('/api/cards/resolve', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req) =>
+    cards.resolve(cardQuery.parse(req.query).q),
+  );
   app.post(
     '/api/session',
     { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } },

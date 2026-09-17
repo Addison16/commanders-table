@@ -1,5 +1,15 @@
 # Verification record
 
+## September 16 v0.1.3 commander artwork
+
+Scryfall integration adds 23 mocked API/schema checks for trusted links, double-faced cards, bounded response/queue/cache handling, request spacing, and rate-limit cooldown. Domain/room regressions verify aligned partner cards, legacy saves, rename/remove/undo/rematch behavior, pending-profile persistence and own-seat permissions. All **110 unit/integration checks across 8 files** pass, along with ESLint, TypeScript and the production build.
+
+The new browser journeys use mocked card metadata and the project's original icon as the image fixture. They exercise name suggestions and pasted links, selection/removal/reload, guest approval and shared backgrounds, partner layout/rotation, failed/stale requests, image failure/online recovery, and automated accessibility checks. Initial timeouts came from two exact label locators on wrapping labels; corrected role locators identify the existing controls.
+
+A separate real-service check selected and displayed four Scryfall commander cards, verified artist attribution, and visually inspected portrait and sideways shared-table layouts. With production CSP and service workers enabled, real Scryfall art loaded as a successful CORS response, entered the bounded image cache, and survived an actual app-origin outage and subsequent life edits/reloads in Chromium and WebKit. WebKit's offline network emulation produced an internal navigation error, so this check uses the same real-origin outage approach as the existing PWA smoke test. Production prompted updates, private-API cache exclusion and HTTPS/cookie/CSRF/WSS checks also pass.
+
+The complete Chromium/WebKit suite passes: **57 passed, with 3 expected skips** (60 cases total). Hosted release checks, publication and live deployment are pending. No physical-phone verification is implied.
+
 ## September 16 v0.1.2 bug review and player-colored dice
 
 The review added regression coverage for canceled room reconnects, concurrent recent-room/archive writes, stale offline snapshots, live form drafts, shared dice-player identity, expired memberships, recovery transitions, and cloned browser-tab identities. The original exact-life form reproduced a stale 20 after decreasing life to 19; the corrected form follows saved changes while preserving an unfinished typed value. Four storage/reconnect regressions were also confirmed failing before their fixes.

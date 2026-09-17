@@ -3,6 +3,7 @@ import { defaultSetup, setupFromGame } from '../../shared/game.js';
 import { palettes, setupSchema, type Setup } from '../../shared/schema.js';
 import { useApp, report, startLocal, updateProfile } from '../app/store.js';
 import { Field, Icon, Sheet, Toggle } from '../components/ui.js';
+import { CommanderInput } from '../components/CommanderInput.js';
 export function SetupSheet({ mode, onClose }: { mode: 'local' | 'room'; onClose: () => void }) {
   const [setup, setSetup] = useState<Setup>(() => {
     const { confirmed, profile } = useApp.getState();
@@ -160,6 +161,14 @@ export function SetupSheet({ mode, onClose }: { mode: 'local' | 'room'; onClose:
                                       Number(e.target.value) === 2
                                         ? [p.commanders[0], 'Commander 2']
                                         : [p.commanders[0]],
+                                    ...(p.commanderCards
+                                      ? {
+                                          commanderCards:
+                                            Number(e.target.value) === 2
+                                              ? [p.commanderCards[0] ?? null, null]
+                                              : [p.commanderCards[0] ?? null],
+                                        }
+                                      : {}),
                                   }
                                 : p,
                             ),
@@ -171,28 +180,29 @@ export function SetupSheet({ mode, onClose }: { mode: 'local' | 'room'; onClose:
                       </select>
                     </Field>
                     {seat.commanders.map((label, k) => (
-                      <Field key={k} label={`Commander ${k + 1}`}>
-                        <input
-                          value={label}
-                          maxLength={40}
-                          required
-                          onChange={(e) =>
-                            setSetup((s) => ({
-                              ...s,
-                              seats: s.seats.map((p, j) =>
-                                j === i
-                                  ? {
-                                      ...p,
-                                      commanders: p.commanders.map((n, nI) =>
-                                        nI === k ? e.target.value : n,
-                                      ),
-                                    }
-                                  : p,
-                              ),
-                            }))
-                          }
-                        />
-                      </Field>
+                      <CommanderInput
+                        key={k}
+                        label={`Commander ${k + 1}`}
+                        value={label}
+                        card={seat.commanderCards?.[k]}
+                        disabled={busy}
+                        onChange={(name, card) =>
+                          setSetup((s) => ({
+                            ...s,
+                            seats: s.seats.map((p, j) =>
+                              j === i
+                                ? {
+                                    ...p,
+                                    commanders: p.commanders.map((n, nI) => (nI === k ? name : n)),
+                                    commanderCards: p.commanders.map((_, nI) =>
+                                      nI === k ? card : (p.commanderCards?.[nI] ?? null),
+                                    ),
+                                  }
+                                : p,
+                            ),
+                          }))
+                        }
+                      />
                     ))}
                   </>
                 )}

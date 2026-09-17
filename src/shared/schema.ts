@@ -1,9 +1,11 @@
 import { z } from 'zod';
+import { commanderCardSchema } from './cards.js';
 
 export const PROTOCOL = 1;
 export const LIMIT = 999_999;
 export const idSchema = z.string().uuid();
 export const nameSchema = z.string().trim().min(1).max(40);
+export const commanderNameSchema = z.string().trim().min(1).max(100);
 export const counterKey = z
   .string()
   .trim()
@@ -35,9 +37,14 @@ export const setupSchema = z
           .strictObject({
             name: nameSchema,
             color: z.enum(palettes),
-            commanders: z.array(nameSchema).min(1).max(2),
+            commanders: z.array(commanderNameSchema).min(1).max(2),
+            commanderCards: z.array(commanderCardSchema.nullable()).min(1).max(2).optional(),
           })
-          .strict(),
+          .strict()
+          .refine((seat) => !seat.commanderCards || seat.commanderCards.length === seat.commanders.length, {
+            message: 'Commander artwork must match the number of commanders.',
+            path: ['commanderCards'],
+          }),
       )
       .min(1)
       .max(8),
@@ -56,7 +63,13 @@ export const playerSchema = z
   })
   .strict();
 export const commanderSchema = z
-  .strictObject({ id: idSchema, ownerId: idSchema, label: nameSchema, casts: int })
+  .strictObject({
+    id: idSchema,
+    ownerId: idSchema,
+    label: commanderNameSchema,
+    casts: int,
+    card: commanderCardSchema.optional(),
+  })
   .strict();
 export const rollSchema = z
   .strictObject({
@@ -182,7 +195,12 @@ export const commandSchema = z.discriminatedUnion('type', [
     name: nameSchema,
     color: z.enum(palettes),
   }),
-  z.strictObject({ type: z.literal('commanderName'), commanderId: idSchema, label: nameSchema }),
+  z.strictObject({
+    type: z.literal('commanderName'),
+    commanderId: idSchema,
+    label: commanderNameSchema,
+    card: commanderCardSchema.nullable().optional(),
+  }),
   z.strictObject({ type: z.literal('eliminate'), playerId: idSchema, eliminated: z.boolean() }),
   z.strictObject({
     type: z.literal('marker'),
@@ -219,10 +237,19 @@ export const commandSchema = z.discriminatedUnion('type', [
   }),
 ]);
 export type Command = z.infer<typeof commandSchema>;
-export const seatProfileSchema = z.strictObject({
-  name: nameSchema,
-  commanders: z.array(nameSchema).min(1).max(2).optional(),
-});
+export const seatProfileSchema = z
+  .strictObject({
+    name: nameSchema,
+    commanders: z.array(commanderNameSchema).min(1).max(2).optional(),
+    commanderCards: z.array(commanderCardSchema.nullable()).min(1).max(2).optional(),
+  })
+  .refine(
+    (profile) => !profile.commanderCards || profile.commanderCards.length === profile.commanders?.length,
+    {
+      message: 'Commander artwork must match the number of commanders.',
+      path: ['commanderCards'],
+    },
+  );
 export type SeatProfile = z.infer<typeof seatProfileSchema>;
 export const adminSchema = z.discriminatedUnion('type', [
   z.strictObject({

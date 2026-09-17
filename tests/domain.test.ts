@@ -5,11 +5,13 @@ import {
   elapsed,
   makeRoll,
   reduceGame,
+  setupFromGame,
   warnings,
   GAME_RECOVERY_MS,
 } from '../src/shared/game.js';
 import { newId, randomInt } from '../src/shared/random.js';
-import { gameSchema, type Command, type Game } from '../src/shared/schema.js';
+import { gameSchema, seatProfileSchema, setupSchema, type Command, type Game } from '../src/shared/schema.js';
+import type { CommanderCard } from '../src/shared/cards.js';
 const initial = () => {
   const setup = defaultSetup();
   setup.seats[0].commanders.push('Partner');
@@ -28,6 +30,78 @@ function action(g: Game, c: Command, groupId?: string, now = 2000) {
   });
 }
 describe('game invariants', () => {
+  it('keeps chosen commander artwork through saves, setup, rematches, undo and manual renames', () => {
+    let game = initial();
+    const commander = Object.values(game.commanders)[0];
+    const card: CommanderCard = {
+      id: newId(),
+      name: 'A Legendary Commander With A Name Longer Than Forty Characters',
+      imageUrl: 'https://cards.scryfall.io/art_crop/front/1/2/12345678-1234-4234-8234-123456789abc.jpg',
+      scryfallUrl: 'https://scryfall.com/card/test/1/example-commander',
+      artist: 'Example Artist',
+    };
+    game = action(game, { type: 'cast', commanderId: commander.id });
+    game = action(game, {
+      type: 'damage',
+      playerId: game.order[1],
+      commanderId: commander.id,
+      amount: 7,
+      subtractLife: true,
+    });
+    const before = game;
+    game = action(game, { type: 'commanderName', commanderId: commander.id, label: card.name, card });
+    expect(game.commanders[commander.id]).toEqual({
+      ...before.commanders[commander.id],
+      label: card.name,
+      card,
+    });
+    expect(game.players).toEqual(before.players);
+    expect(game.damageReceived).toEqual(before.damageReceived);
+    const saved = gameSchema.parse(JSON.parse(JSON.stringify(game)));
+    expect(saved.commanders[commander.id].card).toEqual(card);
+    const setup = setupFromGame(saved);
+    expect(setup.seats[0].commanderCards).toEqual([card, null]);
+    expect(Object.values(createGame(setup, newId, 4000).commanders)[0].card).toEqual(card);
+    const rematch = action(saved, { type: 'rematch' });
+    expect(rematch.commanders[commander.id]).toEqual({ ...saved.commanders[commander.id], casts: 0 });
+    expect(action(saved, { type: 'undo' }).commanders[commander.id]).toEqual(before.commanders[commander.id]);
+    expect(action(action(saved, { type: 'undo' }), { type: 'redo' }).commanders[commander.id]).toEqual(
+      saved.commanders[commander.id],
+    );
+    for (const command of [
+      { type: 'commanderName', commanderId: commander.id, label: 'A custom nickname' },
+      { type: 'commanderName', commanderId: commander.id, label: card.name, card: null },
+    ] as const) {
+      const renamed = action(saved, command);
+      expect(renamed.commanders[commander.id]).not.toHaveProperty('card');
+      expect(action(renamed, { type: 'undo' }).commanders[commander.id].card).toEqual(card);
+    }
+    const legacy = initial();
+    expect(gameSchema.parse(legacy)).toEqual(legacy);
+    expect(setupFromGame(legacy).seats[0]).not.toHaveProperty('commanderCards');
+  });
+  it('bounds commander names separately from player names and aligns optional artwork slots', () => {
+    const setup = defaultSetup();
+    setup.seats[0].commanders = ['C'.repeat(100), 'Partner'];
+    setup.seats[0].commanderCards = [null, null];
+    expect(() => createGame(setup, newId, 1000)).not.toThrow();
+    expect(
+      seatProfileSchema.parse({
+        name: 'Alex',
+        commanders: setup.seats[0].commanders,
+        commanderCards: [null, null],
+      }),
+    ).toHaveProperty('commanderCards');
+    setup.seats[0].commanderCards = [null];
+    expect(setupSchema.safeParse(setup).success).toBe(false);
+    expect(seatProfileSchema.safeParse({ name: 'Alex', commanderCards: [null] }).success).toBe(false);
+    expect(
+      seatProfileSchema.safeParse({ name: 'Alex', commanders: ['One', 'Two'], commanderCards: [null] })
+        .success,
+    ).toBe(false);
+    expect(seatProfileSchema.safeParse({ name: 'Alex', commanders: ['C'.repeat(101)] }).success).toBe(false);
+    expect(seatProfileSchema.safeParse({ name: 'P'.repeat(41), commanders: ['One'] }).success).toBe(false);
+  });
   it('reopens the same game for 24 hours without resetting scores, identities or timer', () => {
     let game = initial();
     game = action(game, {

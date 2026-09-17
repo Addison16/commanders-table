@@ -24,6 +24,17 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//],
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         cleanupOutdatedCaches: true,
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/cards\.scryfall\.io\/art_crop\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'commander-art-v1',
+              cacheableResponse: { statuses: [200] },
+              expiration: { maxEntries: 64, maxAgeSeconds: 30 * 24 * 60 * 60, purgeOnQuotaError: true },
+            },
+          },
+        ],
       },
     }),
   ],

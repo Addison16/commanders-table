@@ -176,6 +176,18 @@ export function Settings({ onClose }: { onClose: () => void }) {
           fingerprint is used.
         </p>
       </section>
+      <p className="hint">
+        Commander's Table is unofficial Fan Content permitted under the{' '}
+        <a href="https://company.wizards.com/fancontentpolicy" target="_blank" rel="noreferrer">
+          Fan Content Policy
+        </a>
+        . Not approved or endorsed by Wizards. Portions of the materials used are property of Wizards of the
+        Coast. © Wizards of the Coast. Optional commander artwork is provided by{' '}
+        <a href="https://scryfall.com" target="_blank" rel="noreferrer">
+          Scryfall
+        </a>
+        ; artist credits appear in player details.
+      </p>
     </Sheet>
   );
 }

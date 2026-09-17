@@ -1,0 +1,111 @@
+@layer components {
+  .commander-input {
+    min-width: 0;
+    margin: 14px 0 18px;
+  }
+  .commander-input > .field {
+    margin: 0 0 8px;
+  }
+  .commander-suggestions {
+    list-style: none;
+    margin: 0 0 8px;
+    padding: 4px;
+    max-height: 230px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 1px solid #d6b66a45;
+    border-radius: 10px;
+    background: #090f19;
+  }
+  .commander-suggestions button {
+    justify-content: flex-start;
+    width: 100%;
+    min-width: 0;
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    border-color: transparent;
+    background: transparent;
+  }
+  .commander-suggestions button:hover {
+    background: #d6b66a12;
+  }
+  .commander-art-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+  }
+  .commander-art-actions > button {
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+  .commander-art-actions > small {
+    flex: 1;
+    min-width: 115px;
+    text-align: left;
+  }
+  .commander-art-error {
+    margin-top: 8px;
+    color: #efd1ad;
+    font-size: 12px;
+  }
+  .commander-art-preview {
+    display: grid;
+    grid-template-columns: 84px minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid #d6b66a30;
+    border-radius: 12px;
+    background: #080e1770;
+  }
+  .commander-art-preview > img {
+    display: block;
+    width: 84px;
+    height: 72px;
+    object-fit: cover;
+    border-radius: 7px;
+  }
+  .commander-art-unavailable {
+    display: grid;
+    place-items: center;
+    min-height: 72px;
+    font-size: 11px;
+    line-height: 1.5;
+    text-align: center;
+    color: var(--muted);
+  }
+  .commander-art-credit {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    min-width: 0;
+    text-align: left;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+  }
+  .commander-art-credit strong {
+    font-size: 12px;
+    color: #f3f0e8;
+  }
+  .commander-art-credit > a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 3px 0;
+  }
+  .commander-art-credit > button {
+    margin-top: 2px;
+    padding: 4px 0;
+    min-height: 44px;
+    font-size: 11px;
+    justify-content: flex-start;
+  }
+}

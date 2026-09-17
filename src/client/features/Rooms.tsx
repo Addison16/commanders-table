@@ -10,6 +10,8 @@ import {
 } from '../../shared/schema.js';
 import { gameExport } from '../storage/repository.js';
 import { ask, downloadText, Field, Icon, Sheet, Toggle } from '../components/ui.js';
+import { CommanderInput } from '../components/CommanderInput.js';
+import type { CommanderCard } from '../../shared/cards.js';
 export function JoinSheet({ onClose }: { onClose: () => void }) {
   const [code, setCode] = useState(new URLSearchParams(location.search).get('join') ?? ''),
     [name, setName] = useState(useApp.getState().profile.displayName),
@@ -97,11 +99,17 @@ function SeatRequest({ room }: { room: RoomView }) {
     pending = useApp((s) => s.pending);
   const [name, setName] = useState(room.me.seatProfile?.name ?? room.me.name),
     [commanders, setCommanders] = useState(room.me.seatProfile?.commanders ?? ['']);
+  const [commanderCards, setCommanderCards] = useState<(CommanderCard | null)[]>(
+    room.me.seatProfile?.commanderCards ?? commanders.map(() => null),
+  );
   const commanderEnabled = room.commanderEnabled ?? true;
   const profile: SeatProfile = {
     name: name.trim(),
     ...(commanderEnabled && (commanders.length === 2 || commanders.some((label) => label.trim()))
-      ? { commanders: commanders.map((label, index) => label.trim() || `Commander ${index + 1}`) }
+      ? {
+          commanders: commanders.map((label, index) => label.trim() || `Commander ${index + 1}`),
+          ...(commanderCards.some(Boolean) ? { commanderCards } : {}),
+        }
       : {}),
   };
   const changed = JSON.stringify(profile) !== JSON.stringify(room.me.seatProfile);
@@ -114,7 +122,11 @@ function SeatRequest({ room }: { room: RoomView }) {
         if (!playerId || disabled) return;
         const parsed = seatProfileSchema.safeParse(profile);
         if (!parsed.success) {
-          report(new Error('Enter a player name and commander names of up to 40 characters.'));
+          report(
+            new Error(
+              'Use a player name up to 40 characters and commander names up to 100. Select artwork to use a pasted card link.',
+            ),
+          );
           return;
         }
         void act({ type: 'requestSeat', playerId, profile: parsed.data });
@@ -134,24 +146,28 @@ function SeatRequest({ room }: { room: RoomView }) {
         {commanderEnabled && (
           <>
             {commanders.map((label, index) => (
-              <Field key={index} label={`Commander ${index + 1} name`}>
-                <input
-                  value={label}
-                  onChange={(event) =>
-                    setCommanders((current) =>
-                      current.map((value, at) => (at === index ? event.target.value : value)),
-                    )
-                  }
-                  maxLength={40}
-                  placeholder="Choose a commander, or add it later"
-                />
-              </Field>
+              <CommanderInput
+                key={index}
+                label={`Commander ${index + 1} name`}
+                value={label}
+                card={commanderCards[index]}
+                disabled={disabled}
+                onChange={(name, card) => {
+                  setCommanders((current) => current.map((value, at) => (at === index ? name : value)));
+                  setCommanderCards((current) =>
+                    commanders.map((_, at) => (at === index ? card : (current[at] ?? null))),
+                  );
+                }}
+              />
             ))}
             <Toggle
               checked={commanders.length === 2}
-              onChange={(partners) =>
-                setCommanders((current) => (partners ? [current[0], ''] : [current[0]]))
-              }
+              onChange={(partners) => {
+                setCommanders((current) => (partners ? [current[0], ''] : [current[0]]));
+                setCommanderCards((current) =>
+                  partners ? [current[0] ?? null, null] : [current[0] ?? null],
+                );
+              }}
             >
               Two commanders / partners
             </Toggle>

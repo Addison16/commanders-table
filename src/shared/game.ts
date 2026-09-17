@@ -48,13 +48,21 @@ export function defaultSetup(count = 4, commander = true): Setup {
 export function setupFromGame(game: Game): Setup {
   return {
     settings: structuredClone(game.settings),
-    seats: game.order.map((id) => ({
-      name: game.players[id].name,
-      color: game.players[id].color,
-      commanders: Object.values(game.commanders)
-        .filter((c) => c.ownerId === id)
-        .map((c) => c.label),
-    })),
+    seats: game.order.map((id) => {
+      const commanders = Object.values(game.commanders).filter((commander) => commander.ownerId === id);
+      return {
+        name: game.players[id].name,
+        color: game.players[id].color,
+        commanders: commanders.map((commander) => commander.label),
+        ...(commanders.some((commander) => commander.card)
+          ? {
+              commanderCards: commanders.map((commander) =>
+                commander.card ? structuredClone(commander.card) : null,
+              ),
+            }
+          : {}),
+      };
+    }),
   };
 }
 export function createGame(input: Setup, id: () => string, now: number): Game {
@@ -90,9 +98,10 @@ export function createGame(input: Setup, id: () => string, now: number): Game {
       counters: {},
       eliminated: false,
     };
-    for (const label of seat.commanders) {
+    for (const [index, label] of seat.commanders.entries()) {
       const cid = id();
-      game.commanders[cid] = { id: cid, ownerId: pid, label, casts: 0 };
+      const card = seat.commanderCards?.[index];
+      game.commanders[cid] = { id: cid, ownerId: pid, label, casts: 0, ...(card ? { card } : {}) };
     }
   }
   return game;
@@ -204,6 +213,8 @@ export function reduceGame(previous: Game, input: Command, ctx: Context): Game {
       break;
     case 'commanderName':
       commander!.label = c.label;
+      if (c.card) commander!.card = c.card;
+      else delete commander!.card;
       summary = `Commander renamed to ${c.label}`;
       break;
     case 'eliminate':

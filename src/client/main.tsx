@@ -6,5 +6,6 @@ import '@fontsource/inter/latin-700.css';
 import '@fontsource/cormorant-garamond/latin-500.css';
 import '@fontsource/cormorant-garamond/latin-500-italic.css';
 import './styles/app.css';
+import './styles/cards.css';
 import { App } from './app/App.js';
 createRoot(document.getElementById('root')!).render(<App />);

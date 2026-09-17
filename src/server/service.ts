@@ -299,10 +299,14 @@ export class RoomService {
       }
       profile.commanders.forEach((label, index) => {
         const commander = existing[index];
-        if (commander) commander.label = label;
-        else {
+        const card = profile.commanderCards?.[index];
+        if (commander) {
+          commander.label = label;
+          if (card) commander.card = card;
+          else delete commander.card;
+        } else {
           const id = randomUUID();
-          g.commanders[id] = { id, ownerId: playerId, label, casts: 0 };
+          g.commanders[id] = { id, ownerId: playerId, label, casts: 0, ...(card ? { card } : {}) };
         }
       });
     }
