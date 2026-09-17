@@ -1,1 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="28" fill="#090d14"/><g fill="none" stroke="#d6b66a" stroke-width="3"><path d="M64 20 103 43v43L64 108 25 86V43Z"/><path d="m64 20 24 44-24 44-24-44Z M25 43l63 21-63 22 M103 43 40 64l63 22"/></g><circle cx="64" cy="64" r="6" fill="#f3f0e8"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="28" fill="#090d14" />
+  <!-- The homepage Sigil's default geometry, centered inside the maskable safe area. -->
+  <g transform="translate(14 14)" fill="none">
+    <g stroke="#d6b66a" stroke-width="1.2">
+      <circle cx="50" cy="50" r="38" stroke-dasharray="2 7" />
+      <path d="m50 8 36 21v42L50 92 14 71V29Z" />
+      <g>
+        <path d="m50 19 22 31-22 31-22-31Z M19 50h62M50 19v62" />
+        <circle cx="50" cy="50" r="15" />
+        <path d="m35 35 30 30M65 35 35 65" />
+      </g>
+    </g>
+    <circle cx="50" cy="50" r="4" fill="#d6b66a" />
+  </g>
+</svg>

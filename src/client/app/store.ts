@@ -10,6 +10,7 @@ import {
   type Setup,
 } from '../../shared/schema.js';
 import { ConflictError, initialProfile, Repository, type Profile } from '../storage/repository.js';
+import { acquireEditorIdentity } from '../storage/tabIdentity.js';
 import { playCue, unlockAudio } from '../components/feedback.js';
 
 let tabId = newId();
@@ -56,6 +57,7 @@ export const useApp = create<State>(() => ({
   unresolved: [],
 }));
 let queue = Promise.resolve();
+let editorResume: Promise<void> | undefined;
 let localPending: { command: Command; context: Parameters<typeof reduceGame>[2] }[] = [];
 let roomSend: ((command: Command | AdminCommand, groupId?: string) => Promise<void>) | undefined;
 let disconnectRoom: (() => void) | undefined;
@@ -85,6 +87,7 @@ export async function updateProfile(patch: Partial<Profile>) {
   }
 }
 export async function hydrate() {
+  repository.tabId = await acquireEditorIdentity(repository.tabId);
   await repository.open();
   useApp.setState({ storageWarning: repository.warning });
   try {
@@ -206,6 +209,7 @@ export function act(command: Command | AdminCommand, groupId?: string): Promise<
   return queue;
 }
 export async function startLocal(setup: Setup, source?: Game) {
+  await editorResume;
   await queue;
   const game = source
     ? { ...structuredClone(source), id: newId(), revision: 0, undo: [], redo: [] }
@@ -223,11 +227,14 @@ export async function startLocal(setup: Setup, source?: Game) {
     readOnly: false,
     recovery: false,
     pending: 0,
+    clockOffset: 0,
+    unresolved: [],
   });
   await updateProfile({ lastMode: 'local', setup });
   channel?.postMessage('changed');
 }
 export async function resumeLocal(gameId?: string, reopen = false) {
+  await editorResume;
   await queue;
   const { game, readOnly } =
     gameId && reopen
@@ -251,6 +258,9 @@ export async function resumeLocal(gameId?: string, reopen = false) {
     readOnly,
     room: undefined,
     pending: 0,
+    connected: false,
+    clockOffset: 0,
+    unresolved: [],
   });
   await updateProfile({ lastMode: 'local', ...(game ? { setup: setupFromGame(game) } : {}) });
   channel?.postMessage('changed');
@@ -261,6 +271,7 @@ export async function openHome() {
   useApp.setState({ screen: 'home' });
 }
 export async function takeOver() {
+  await editorResume;
   const { game } = await repository.active();
   if (game) {
     await repository.commit(game, game, false, true);
@@ -270,9 +281,12 @@ export async function takeOver() {
   }
 }
 export async function recoverCheckpoint() {
+  await editorResume;
+  await queue;
   const game = await repository.checkpoint();
   if (!game) throw new Error('No valid checkpoint is available. Your recovery export is still available.');
   await repository.commit(game, undefined, true, true);
+  disconnectRoom?.();
   useApp.setState({
     game,
     confirmed: game,
@@ -281,20 +295,66 @@ export async function recoverCheckpoint() {
     error: '',
     mode: 'local',
     screen: 'board',
+    room: undefined,
+    connected: false,
+    readOnly: false,
+    pending: 0,
+    clockOffset: 0,
+    unresolved: [],
   });
+  await updateProfile({ lastMode: 'local', setup: setupFromGame(game) });
+  channel?.postMessage('changed');
 }
 export async function startFreshAfterRecovery() {
+  await editorResume;
+  await queue;
   const active = await repository.get('active');
   if (active) await repository.put(`recovery:${Date.now()}`, active);
   const profile = useApp.getState().profile;
   await repository.put('profile', profile);
-  repository.corrupt = undefined;
-  useApp.setState({ recovery: false, error: '', readOnly: false });
   const setup = defaultSetup(),
     game = createGame(setup, newId, Date.now());
   await repository.commit(game, undefined, true, true);
-  useApp.setState({ mode: 'local', game, confirmed: game, localGame: game, screen: 'board' });
+  disconnectRoom?.();
+  useApp.setState({
+    mode: 'local',
+    game,
+    confirmed: game,
+    localGame: game,
+    screen: 'board',
+    recovery: false,
+    error: '',
+    readOnly: false,
+    room: undefined,
+    connected: false,
+    pending: 0,
+    clockOffset: 0,
+    unresolved: [],
+  });
   await updateProfile({ lastMode: 'local', setup });
+  channel?.postMessage('changed');
+}
+function resumeEditor() {
+  if (editorResume || !useApp.getState().ready) return;
+  if (useApp.getState().mode === 'local') useApp.setState({ readOnly: true });
+  editorResume = (async () => {
+    await queue;
+    repository.tabId = await acquireEditorIdentity(repository.tabId);
+    if (useApp.getState().mode !== 'local' || useApp.getState().recovery) return;
+    const { game, readOnly } = await repository.active();
+    if (useApp.getState().mode !== 'local') return;
+    useApp.setState({ game, confirmed: game, localGame: game, readOnly, pending: 0 });
+  })()
+    .catch(report)
+    .finally(() => {
+      editorResume = undefined;
+    });
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) resumeEditor();
+  });
+  document.addEventListener('resume', resumeEditor);
 }
 channel?.addEventListener('message', async () => {
   if (!useApp.getState().ready || useApp.getState().mode !== 'local') return;

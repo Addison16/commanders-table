@@ -1,9 +1,17 @@
 import { useState } from 'react';
-import { palettes } from '../../shared/schema.js';
+import { palettes, type Game } from '../../shared/schema.js';
 import { act, canEdit, isHost, useApp, updateProfile } from '../app/store.js';
 import { ask, Field, Icon, Sheet, Toggle } from '../components/ui.js';
 import { HoldButton } from '../components/HoldButton.js';
 import { facesAcross } from './TableLayout.js';
+
+// Untouched fields follow the live game. Once edited, a field keeps its draft
+// through local steps and remote updates until that draft is submitted.
+function useLiveDraft<T extends string>(value: T) {
+  const [draft, setDraft] = useState<T>();
+  const reset = () => setDraft((current) => (current === draft ? undefined : current));
+  return [draft ?? value, setDraft, reset] as const;
+}
 
 function Counter({
   playerId,
@@ -16,7 +24,7 @@ function Counter({
   value: number;
   disabled: boolean;
 }) {
-  const [exact, setExact] = useState(String(value));
+  const [exact, setExact, resetExact] = useLiveDraft(String(value));
   return (
     <div className="counter-block">
       <div className="counter-row">
@@ -59,7 +67,7 @@ function Counter({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            void act({ type: 'set', playerId, field, value: Number(exact) });
+            void act({ type: 'set', playerId, field, value: Number(exact) }).then(resetExact);
           }}
         >
           <input
@@ -89,8 +97,8 @@ export function PlayerDetails({ playerId, onClose }: { playerId: string; onClose
   const [source, setSource] = useState(Object.keys(game.commanders)[0]);
   const [amount, setAmount] = useState('1');
   const [subtractLife, setSubtractLife] = useState(true);
-  const [name, setName] = useState(player.name),
-    [color, setColor] = useState(player.color);
+  const [name, setName, resetName] = useLiveDraft(player.name),
+    [color, setColor, resetColor] = useLiveDraft(player.color);
   const disabled = !canEdit(playerId) || player.eliminated || game.status === 'ended';
   const manage =
     !readOnly &&
@@ -107,7 +115,10 @@ export function PlayerDetails({ playerId, onClose }: { playerId: string; onClose
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            void act({ type: 'customize', playerId, name, color });
+            void act({ type: 'customize', playerId, name, color }).then(() => {
+              resetName();
+              resetColor();
+            });
           }}
         >
           <Field label="Player name">
@@ -127,24 +138,7 @@ export function PlayerDetails({ playerId, onClose }: { playerId: string; onClose
         {Object.values(game.commanders)
           .filter((c) => c.ownerId === playerId)
           .map((c, index) => (
-            <form
-              key={c.id}
-              onSubmit={(e) => {
-                e.preventDefault();
-                void act({
-                  type: 'commanderName',
-                  commanderId: c.id,
-                  label: String(new FormData(e.currentTarget).get('label')),
-                });
-              }}
-            >
-              <Field label={`Commander ${index + 1} name`}>
-                <input name="label" defaultValue={c.label} maxLength={40} required />
-              </Field>
-              <button className="secondary full" disabled={!manage}>
-                Save commander {index + 1}
-              </button>
-            </form>
+            <CommanderName key={c.id} commander={c} number={index + 1} disabled={!manage} />
           ))}
         {!manage && (
           <p className="hint">
@@ -271,46 +265,7 @@ export function PlayerDetails({ playerId, onClose }: { playerId: string; onClose
             {Object.values(game.commanders)
               .filter((c) => c.ownerId === playerId)
               .map((c) => (
-                <div className="commander-casts" key={c.id}>
-                  <h4>{c.label}</h4>
-                  <p className="tax">
-                    Next cast: <strong>+{c.casts * 2}</strong> additional mana
-                  </p>
-                  <p className="hint">
-                    {c.casts} previous command-zone {c.casts === 1 ? 'cast' : 'casts'}. Other zones do not
-                    count.
-                  </p>
-                  <button
-                    className="secondary full"
-                    disabled={disabled}
-                    onClick={() => void act({ type: 'cast', commanderId: c.id })}
-                  >
-                    Record cast
-                  </button>
-                  <details>
-                    <summary>Correct casts</summary>
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        const form = new FormData(e.currentTarget);
-                        void act({ type: 'castSet', commanderId: c.id, value: Number(form.get('casts')) });
-                      }}
-                    >
-                      <Field label="Previous command-zone casts">
-                        <input
-                          type="number"
-                          name="casts"
-                          inputMode="numeric"
-                          min="0"
-                          max="999999"
-                          required
-                          defaultValue={c.casts}
-                        />
-                      </Field>
-                      <button disabled={disabled}>Correct casts</button>
-                    </form>
-                  </details>
-                </div>
+                <CommanderCasts key={c.id} commander={c} disabled={disabled} />
               ))}
           </section>
         </>
@@ -377,13 +332,13 @@ function DamageCorrection({
   value: number;
   disabled: boolean;
 }) {
-  const [total, setTotal] = useState(String(value));
+  const [total, setTotal, resetTotal] = useLiveDraft(String(value));
   return (
     <form
       className="damage-correction"
       onSubmit={(e) => {
         e.preventDefault();
-        void act({ type: 'damageSet', playerId, commanderId, value: Number(total) });
+        void act({ type: 'damageSet', playerId, commanderId, value: Number(total) }).then(resetTotal);
       }}
     >
       <label>
@@ -403,5 +358,90 @@ function DamageCorrection({
       </label>
       <button disabled={disabled}>Correct</button>
     </form>
+  );
+}
+
+function CommanderName({
+  commander,
+  number,
+  disabled,
+}: {
+  commander: Game['commanders'][string];
+  number: number;
+  disabled: boolean;
+}) {
+  const [label, setLabel, resetLabel] = useLiveDraft(commander.label);
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void act({ type: 'commanderName', commanderId: commander.id, label }).then(resetLabel);
+      }}
+    >
+      <Field label={`Commander ${number} name`}>
+        <input
+          name="label"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          maxLength={40}
+          required
+        />
+      </Field>
+      <button className="secondary full" disabled={disabled}>
+        Save commander {number}
+      </button>
+    </form>
+  );
+}
+
+function CommanderCasts({
+  commander,
+  disabled,
+}: {
+  commander: Game['commanders'][string];
+  disabled: boolean;
+}) {
+  const [casts, setCasts, resetCasts] = useLiveDraft(String(commander.casts));
+  return (
+    <div className="commander-casts">
+      <h4>{commander.label}</h4>
+      <p className="tax">
+        Next cast: <strong>+{commander.casts * 2}</strong> additional mana
+      </p>
+      <p className="hint">
+        {commander.casts} previous command-zone {commander.casts === 1 ? 'cast' : 'casts'}. Other zones do not
+        count.
+      </p>
+      <button
+        className="secondary full"
+        disabled={disabled}
+        onClick={() => void act({ type: 'cast', commanderId: commander.id })}
+      >
+        Record cast
+      </button>
+      <details>
+        <summary>Correct casts</summary>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void act({ type: 'castSet', commanderId: commander.id, value: Number(casts) }).then(resetCasts);
+          }}
+        >
+          <Field label="Previous command-zone casts">
+            <input
+              type="number"
+              name="casts"
+              inputMode="numeric"
+              min="0"
+              max="999999"
+              required
+              value={casts}
+              onChange={(e) => setCasts(e.target.value)}
+            />
+          </Field>
+          <button disabled={disabled}>Correct casts</button>
+        </form>
+      </details>
+    </div>
   );
 }

@@ -237,13 +237,18 @@ export async function connectRoom(roomId: string) {
     if (generation !== gen) return;
     await session();
     if (generation !== gen) return;
-    pending = await repository.pending(roomId);
+    const savedPending = await repository.pending(roomId);
+    // Storage can finish after the user has left this room. Keep that result
+    // local until we know this connection still owns the active room state.
+    if (generation !== gen) return;
+    pending = savedPending;
     useApp.setState({ mode: 'room', pending: pending.length });
     // Re-submit only durable envelopes. Receipt lookup precedes mutable roles/game IDs on the server.
     for (const env of [...pending]) {
       const result = await api<{ receipt: Receipt; view?: RoomView }>(`/rooms/${roomId}/command`, env);
       if (generation !== gen) return;
       await receipt(result.receipt);
+      if (generation !== gen) return;
     }
     const start = Date.now();
     const view = await api<RoomView>(`/rooms/${roomId}`);

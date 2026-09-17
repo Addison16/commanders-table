@@ -1,5 +1,17 @@
 # Verification record
 
+## September 16 v0.1.2 bug review and player-colored dice
+
+The review added regression coverage for canceled room reconnects, concurrent recent-room/archive writes, stale offline snapshots, live form drafts, shared dice-player identity, expired memberships, recovery transitions, and cloned browser-tab identities. The original exact-life form reproduced a stale 20 after decreasing life to 19; the corrected form follows saved changes while preserving an unfinished typed value. Four storage/reconnect regressions were also confirmed failing before their fixes.
+
+Local checks pass: ESLint, TypeScript, production build, **84 unit/integration checks across 7 files**, and the complete **49-case Chromium/WebKit browser suite with 3 expected skips**. Production service-worker updates preserve the game in both engines, offline play survives a real origin outage and reload, and HTTPS/cookie/CSRF/WSS checks pass. `npm audit --omit=dev` reports no known vulnerabilities. Browser checks use an isolated database/API port while the existing deployment remains online.
+
+Dice checks verify actual colored pixels on the rendered canvas, selected player identity across ordinary rolls, percentile pairs, rerolls and persisted replays, and matching room results on both phones. Unit checks cover every palette, tied-player colors, and keeping random first-player selection neutral until reveal. The rounded geometry and upright-number checks remain intact. See [player-colored-dice.png](screenshots/player-colored-dice.png).
+
+The shared brand SVG uses the homepage symbol's exact path/circle geometry. Browser inspection confirms the header and favicon use it; regenerated 192/512-pixel install icons match it and preserve maskable padding. The README's four/eight-player screenshots were refreshed with the unified logo.
+
+Duplicate-tab checks use real Web Locks in both browser engines and verify reload, takeover and restored-page handling. When Web Locks is unavailable or denied, existing IndexedDB revision checks remain the safeguard; no physical-device verification is implied. Storage identifiers and SQLite schema are unchanged. Release metadata uses `PolyForm-Noncommercial-1.0.0`; historical release permissions and third-party notices remain intact. Hosted release checks, publication and live deployment are pending.
+
 ## September 16 v0.1.1 licensing release
 
 The v0.1.1 release uses MIT with Commons Clause for the application, documentation and original assets. The package and root lockfile point to `LICENSE`; both the Dockerfile and release metadata explicitly use `LicenseRef-MIT-Commons-Clause-1.0`. The release validator, `actionlint`, targeted formatting checks and `git diff --check` pass. A comparison with the previous lockfile confirms every third-party dependency entry is unchanged. Runtime code, public assets, tests and schema are unchanged, and the existing v0.1.0 tag still contains its original MIT license.

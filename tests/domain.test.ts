@@ -183,6 +183,36 @@ describe('game invariants', () => {
     const d100 = makeRoll(g, { type: 'roll', kind: 'dice', sides: 100, count: 20 }, base, () => 99);
     expect(d100.values).toEqual(Array(20).fill(100));
   });
+  it('records the chosen player for dice and coins while accepting older unassigned rolls', () => {
+    const game = initial(),
+      playerId = game.order[1],
+      context = { id: newId(), now: 2000, actor: 'Alex', actorId, operationId: newId() };
+    for (const kind of ['dice', 'coin'] as const) {
+      const command = { type: 'roll', kind, sides: 20, count: 1, playerId } as const;
+      const roll = makeRoll(game, command, context, () => 0);
+      expect(roll.playerId).toBe(playerId);
+      const rolled = reduceGame(game, command, { ...context, roll });
+      const saved = gameSchema.parse(JSON.parse(JSON.stringify(rolled)));
+      expect(saved.rolls[0].playerId).toBe(playerId);
+      expect(saved.players).toEqual(game.players);
+      delete saved.rolls[0].playerId;
+      expect(gameSchema.parse(saved).rolls[0]).not.toHaveProperty('playerId');
+      expect(() => makeRoll(game, { ...command, playerId: newId() }, context, () => 0)).toThrow(
+        /Unknown player/,
+      );
+      expect(gameSchema.safeParse({ ...rolled, rolls: [{ ...roll, playerId: newId() }] }).success).toBe(
+        false,
+      );
+    }
+    const tableRoll = makeRoll(
+      game,
+      { type: 'roll', kind: 'first', sides: 20, count: 1, playerId },
+      context,
+      () => 0,
+    );
+    expect(tableRoll).not.toHaveProperty('playerId');
+    expect(tableRoll.candidates).toEqual(game.order);
+  });
   it('rejection sampling discards biased tail values', () => {
     const values = [0xffffffff, 13];
     expect(

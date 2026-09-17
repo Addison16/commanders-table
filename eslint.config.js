@@ -11,6 +11,7 @@ export default ts.config(
       'test-results/**',
       '.browser-cache/**',
       '.npm-cache/**',
+      '.mtg-data/**',
     ],
   },
   js.configs.recommended,

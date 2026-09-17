@@ -3,7 +3,8 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { type Game, type Roll } from '../../shared/schema.js';
 import { act, isHost, useApp } from '../app/store.js';
 import { Icon } from '../components/ui.js';
-import { DiceCanvas, type VisualDie } from './DiceCanvas.js';
+import { DiceCanvas } from './DiceCanvas.js';
+import { visualDice } from './presentation.js';
 import { playCue, stopSounds } from '../components/feedback.js';
 import '../styles/dice.css';
 
@@ -37,6 +38,7 @@ export function DiceRoll({
   const [skipped, setSkipped] = useState(false);
   const lastRound = round >= roll.rounds.length - 1;
   const revealed = (settled && lastRound) || skipped || reduced;
+  const rollingPlayer = roll.playerId ? game.players[roll.playerId] : undefined;
   useEffect(() => {
     if (!audio || replay) return;
     playCue('roll', reduced || skipped ? 0.15 : 2.25);
@@ -50,37 +52,7 @@ export function DiceRoll({
     }, 850);
     return () => clearTimeout(timer);
   }, [settled, lastRound, skipped, reduced]);
-  const dice = useMemo<VisualDie[]>(() => {
-    if (roll.kind === 'd20-each')
-      return (roll.rounds[round] ?? roll.candidates.map((playerId) => ({ playerId, value: 0 }))).map((r) => ({
-        value: r.value,
-        symbol: !roll.rounds.length,
-        sides: 20,
-        name: game.players[r.playerId]?.name,
-        color: game.players[r.playerId]?.color ?? 'violet',
-      }));
-    if (roll.kind === 'first') return [{ value: 1, sides: 20, symbol: true, color: 'ivory' }];
-    return roll.values.flatMap((value, i) =>
-      roll.sides === 100
-        ? [
-            {
-              value: Math.floor((value % 100) / 10) * 10,
-              sides: 10,
-              color: 'violet',
-              name: `${i + 1} · tens`,
-              percent: true,
-            },
-            { value: value % 10, sides: 10, color: 'blue', name: `${i + 1} · ones` },
-          ]
-        : [
-            {
-              value,
-              sides: roll.kind === 'coin' ? 2 : roll.sides,
-              color: roll.kind === 'coin' ? 'ivory' : ['ivory', 'blue', 'teal', 'ember'][i % 4],
-            },
-          ],
-    );
-  }, [roll, game, round]);
+  const dice = useMemo(() => visualDice(roll, game, round), [roll, game, round]);
   const finalScores = useMemo(() => {
     const scores = new Map<string, number>();
     for (const round of roll.rounds) for (const r of round) scores.set(r.playerId, r.value);
@@ -111,7 +83,9 @@ export function DiceRoll({
             Dice roll over the life-counter table. The result is revealed when they settle.
           </Dialog.Description>
           <div className="dice-screen-heading">
-            <span className="eyebrow">{roll.actor} rolled</span>
+            <span className="eyebrow">
+              {roll.actor} rolled{rollingPlayer ? ` for ${rollingPlayer.name}` : ''}
+            </span>
             <strong>{rollTitle(roll)}</strong>
             {!revealed && (
               <span>
@@ -204,6 +178,9 @@ export function DiceRoll({
                         kind: roll.kind,
                         sides: roll.kind === 'dice' ? (roll.sides as 4 | 6 | 8 | 10 | 12 | 20 | 100) : 20,
                         count: Math.max(1, roll.values.length),
+                        ...((roll.kind === 'dice' || roll.kind === 'coin') && roll.playerId
+                          ? { playerId: roll.playerId }
+                          : {}),
                       })
                     }
                   >

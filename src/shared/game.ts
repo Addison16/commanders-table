@@ -367,6 +367,7 @@ export function makeRoll(
   ctx: Pick<Context, 'id' | 'now' | 'actor'>,
   rng: (max: number) => number,
 ): Roll {
+  if (c.playerId && !g.players[c.playerId]) throw new Error('Unknown player');
   const candidates = g.order.filter((id) => !g.players[id].eliminated);
   const roll: Roll = {
     id: ctx.id,
@@ -378,6 +379,7 @@ export function makeRoll(
     winner: null,
     at: ctx.now,
     actor: ctx.actor,
+    ...((c.kind === 'dice' || c.kind === 'coin') && c.playerId ? { playerId: c.playerId } : {}),
   };
   if (c.kind === 'dice') roll.values = Array.from({ length: c.count }, () => rng(c.sides) + 1);
   if (c.kind === 'coin') {

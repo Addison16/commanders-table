@@ -107,6 +107,8 @@ Open a previously joined browser and confirm its room, seat, and game. Existing 
 
 Migrations execute in transactions. An older app refuses a newer database schema, so a rollback may need the matching pre-update backup. Retaining a mutable `latest` tag is convenient for discovery; pin a version or digest for controlled updates.
 
+For v0.1.2, update browser clients with **Save & update** when prompted. It reads earlier saves, but adds optional player identity to new dice records. Earlier versions validate those records strictly, so downgrading the server or importing new exports into an older app may require the pre-update backup even though the SQLite schema version is unchanged.
+
 ## Verification and image publication
 
 ```sh
@@ -140,12 +142,12 @@ git push origin v0.1.0
 For subsequent releases, update the package and lockfile together, add notes under `docs/releases/vX.Y.Z.md`, commit, and tag that commit:
 
 ```sh
-npm version 0.1.2 --no-git-tag-version
-node scripts/check-release.mjs v0.1.2
-git add package.json package-lock.json docs/releases/v0.1.2.md
-git commit -m "Release v0.1.2"
-git tag v0.1.2
-git push origin main v0.1.2
+npm version 0.1.3 --no-git-tag-version
+node scripts/check-release.mjs v0.1.3
+git add package.json package-lock.json docs/releases/v0.1.3.md
+git commit -m "Release v0.1.3"
+git tag v0.1.3
+git push origin main v0.1.3
 ```
 
 Release validation rejects a tag that differs from the package/lockfile version or lacks a source license. The same reusable verification workflow runs on PRs, `main`, and releases: lint, types, domain/storage/server tests, Chromium/WebKit, production PWA/HTTPS checks, and native container smoke tests for both architectures. Only a passing release builds and pushes the combined image, creates GitHub release notes, and attaches the Compose/environment files. Official actions are pinned to verified release commits. A failed release can be rerun; publication does not alter the running server.

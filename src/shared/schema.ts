@@ -69,6 +69,7 @@ export const rollSchema = z
     winner: idSchema.nullable(),
     at: z.number().int(),
     actor: nameSchema,
+    playerId: idSchema.optional(),
   })
   .strict();
 export type Roll = z.infer<typeof rollSchema>;
@@ -145,6 +146,8 @@ export const gameSchema = z
         invalid('Invalid damage reference');
     if ([g.markers.monarch, g.markers.initiative, g.turn.playerId].some((id) => id && !g.players[id]))
       invalid('Invalid marker or turn');
+    if (g.rolls.some((roll) => roll.playerId && !g.players[roll.playerId]))
+      invalid('Invalid dice player reference');
     const roots = [
       'players',
       'commanders',
@@ -212,6 +215,7 @@ export const commandSchema = z.discriminatedUnion('type', [
       z.literal(100),
     ]),
     count: z.number().int().min(1).max(20),
+    playerId: idSchema.optional(),
   }),
 ]);
 export type Command = z.infer<typeof commandSchema>;

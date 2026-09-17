@@ -4,7 +4,7 @@ A mobile-first companion for a physical Magic table. Track one to eight players 
 
 Get the [latest release](https://github.com/Addison16/commanders-table/releases/latest) or follow the [Docker setup](#docker) to host your own table.
 
-**Source-available under MIT with Commons Clause:** free to use, modify and share, with a restriction on resale and paid hosting. See [licensing](#publication-and-project-scope), including the earlier v0.1.0 MIT release.
+**Source-available for noncommercial use:** free to use, modify, and share under the [PolyForm Noncommercial License 1.0.0](LICENSE). Commercial use is not licensed. See [licensing](#publication-and-project-scope) for the scope and earlier releases.
 
 Commander damage belongs to individual commanders, including partners and your own commanders. Life, poison, cast counts, optional turns, timers, dice, and first-player selection share the same game model in both modes. Warnings are reminders; elimination and rules decisions stay with the players.
 
@@ -46,7 +46,7 @@ PUBLIC_ORIGIN=http://localhost:8080 ALLOW_INSECURE_HTTP=true npm start
 - For a phone in the middle of four players, choose **Game menu → Table layout → Shared table** and lay it sideways. The top two counters face the far side, the bottom two face you, and larger +/− areas are easy to reach. This preference stays on your phone; individual seats can still be flipped in their details. Choose **All facing me** to return to the original layout.
 - To share, choose **Create room**, choose a table size, and open **Live room** for the code and QR. Friends enter their name, choose their own player name and one or two commanders in the lobby, then request a seat. The host previews their choices and taps **Approve seat**; the names appear on everyone's board without resetting any totals. Commander names can be left for later, and commander fields stay hidden when those tools are off. Pending choices survive refresh and can be revised with **Update request**. Pending guests cannot see the game.
 - Hosts control every seat. Approved guests control their own numerical trackers, player name, and commander labels, and can roll dice. The host may enable **Friends can edit every seat** for numerical adjustments; this does not grant administration or another player's name edits. **My seat** makes a guest's controls larger.
-- **Utilities** rolls ivory 3D dice over the life-counter board, with rounded edges/corners, subtle grain and engraved numbers. The result face lands centered and upright. Each player gets a die in **d20 for everyone**; tied leaders roll again before the starting player is revealed. Every approved room member can roll for the table. Results are saved before animation; skipping or reopening a result never rolls again. Sound effects add a dice clatter; **Display & preferences → Test dice sound** previews it.
+- **Utilities** rolls polished 3D dice over the life-counter board, with rounded edges/corners, subtle grain and engraved numbers. **Roll for** matches the pearl body to a player’s seat color; shared guests default to their own seat. Table rolls keep the original ivory finish. Rerolls, percentile pairs and replays keep the selected player. The result face lands centered and upright. Each player gets a matching colored die in **d20 for everyone**; tied leaders roll again before the starting player is revealed. Every approved room member can roll for the table. Results are saved before animation; skipping or reopening a result never rolls again. Sound effects add a dice clatter; **Display & preferences → Test dice sound** previews it.
 - **Turn tracking** is off by default. Enable it in Utilities to show a compact **Next turn** button beside Undo; shared turn controls belong to the host. The game timer is also in Utilities. The former Extra trackers section has been removed.
 - **New game** asks **One phone** or **Multiple phones** again. Tap the **Commander's Table** logo for Home and the last ten unfinished local/shared games. **Resume** reopens the original local game with its names, totals, and history, or reconnects to a shared room using the current guest cookie.
 - **End game** returns everyone to the starting options after the ending is saved. **Recently ended** keeps up to ten recent games available for 24 hours. **Reopen** restores the original totals, damage, commanders and history; the timer stays paused. In shared rooms, only the host can reopen play, and existing seat assignments remain intact. **View final game** lets you inspect a finished game and still use its dice. Starting another game does not remove the recovery entry. Expired recovery entries disappear; existing archives and server retention remain separate.
@@ -80,7 +80,7 @@ PUBLIC_ORIGIN=http://localhost:8080 ALLOW_INSECURE_HTTP=true \
 
 For LAN play, set `PUBLIC_ORIGIN` to the server's LAN address and use that address on every device. The container runs as non-root, serves port 8080, and stores SQLite plus its WAL sidecars in the named volume `mtg-util_mtg-util-data`. Keep the same Compose project name and volume when updating. Use local disk storage for this single-instance database.
 
-Release images use **`ghcr.io/addison16/commanders-table`**, with `latest` and `stable` following stable releases and version tags such as `0.1.1` for a fixed release. Images support standard 64-bit PCs/servers (`amd64`) and 64-bit ARM machines (`arm64`). A tag becomes available after its release workflow succeeds.
+Release images use **`ghcr.io/addison16/commanders-table`**, with `latest` and `stable` following stable releases and version tags such as `0.1.2` for a fixed release. Images support standard 64-bit PCs/servers (`amd64`) and 64-bit ARM machines (`arm64`). A tag becomes available after its release workflow succeeds.
 
 Download **compose.yaml** and **docker.env.example** from [Releases](https://github.com/Addison16/commanders-table/releases). Put them in a folder, copy `docker.env.example` to `.env`, and set `PUBLIC_ORIGIN` to the exact address your phones will open—for example, `http://192.168.1.50:8080`. The source checkout keeps this example at `.env.docker.example`. Then run:
 
@@ -89,7 +89,7 @@ docker compose -p mtg-util -f compose.yaml pull
 docker compose -p mtg-util -f compose.yaml up -d
 ```
 
-To update, back up first, then run those same two commands. Existing games remain in the named volume. Selecting `latest` makes new releases available to pull; it does not restart your running container automatically. Docker managers that check image tags can detect the updates. Set `MTG_IMAGE=ghcr.io/addison16/commanders-table:0.1.1` in `.env` to stay on a particular version.
+To update, back up first, then run those same two commands. Existing games remain in the named volume. Selecting `latest` makes new releases available to pull; it does not restart your running container automatically. Docker managers that check image tags can detect the updates. Set `MTG_IMAGE=ghcr.io/addison16/commanders-table:0.1.2` in `.env` to stay on a particular version.
 
 For public hosting, use HTTPS, `ALLOW_INSECURE_HTTP=false`, and a reverse proxy that supports WebSockets. See [deployment](docs/deployment.md) for configuration, Caddy, updates, verified backup/restore commands, and the publication workflow.
 
@@ -121,11 +121,11 @@ See [testing evidence and the physical-device checklist](docs/testing.md), [arch
 
 ## Publication and project scope
 
-Starting with v0.1.1, application code, documentation, and original artwork are available under [MIT with Commons Clause v1.0](LICENSE). You may use, modify, self-host, and redistribute the app for free, retaining the license notices. Ordinary business use is allowed, such as using the tracker at a game store.
+Starting with v0.1.2, application code, documentation, and original artwork are available under the [PolyForm Noncommercial License 1.0.0](LICENSE), SPDX identifier `PolyForm-Noncommercial-1.0.0`. You may use, modify, self-host, and share the app for noncommercial purposes, retaining the license terms and required notice.
 
-The Commons Clause prohibits selling the app or products/services whose value comes entirely or substantially from its functionality. This includes paid hosting and qualifying paid support or consulting; rebranding or making small changes does not remove the restriction. These terms are **source-available, not OSI open source**. See the [Commons Clause explanation](https://commonsclause.com/) and the full [license](LICENSE) for the scope of the restriction.
+Commercial use is not granted, including resale, paid hosting, and use for commercial purposes even when no copy is sold. The license defines its permitted personal and noncommercial organizational uses. These terms are **source-available, not OSI open source**; see the full [license](LICENSE) and [official license text](https://polyformproject.org/licenses/noncommercial/1.0.0).
 
-**Earlier MIT releases, including v0.1.0, keep their original permissions.** This change does not retroactively restrict those releases or code available under their MIT terms. Bundled fonts and dependencies retain their separate licenses; see [asset licenses](docs/assets.md).
+**Earlier releases keep their original permissions:** [v0.1.0 remains MIT](https://github.com/Addison16/commanders-table/blob/v0.1.0/LICENSE), and [v0.1.1 remains MIT with Commons Clause](https://github.com/Addison16/commanders-table/blob/v0.1.1/LICENSE). This change does not revoke permissions already granted for those releases or code available under their original terms. Bundled fonts and dependencies retain their separate licenses; see [asset licenses](docs/assets.md).
 
 The release workflow verifies the app, Chromium/WebKit journeys, offline updates, HTTPS/WebSockets, and native amd64/arm64 containers before publishing GHCR images and GitHub release downloads. Maintainers publish updates by bumping the package version and pushing a matching `vX.Y.Z` tag; see [publishing a release](docs/deployment.md#publishing-a-release).
 

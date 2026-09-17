@@ -328,6 +328,29 @@ describe('authoritative room transactions', () => {
     expect(f.run(f.guest.hash, { type: 'turnTracking', enabled: true }).receipt.ok).toBe(false);
     expect(f.run(f.host.hash, { type: 'turnTracking', enabled: true }).receipt.ok).toBe(true);
   });
+  it('shares the chosen dice player without granting seat editing or rerolling a retried command', () => {
+    const f = fixture();
+    f.approve();
+    const playerId = f.room.seats[1].id;
+    const command = { type: 'roll', kind: 'dice', count: 1, sides: 20, playerId } as const;
+    const envelope = f.envelope(f.guest.hash, command);
+    const first = f.svc.execute(f.guest.hash, envelope);
+    expect(first.receipt.ok).toBe(true);
+    const roll = first.view!.game!.rolls[0];
+    expect(roll.playerId).toBe(playerId);
+    expect(f.svc.view(f.room.id, f.host.hash).game!.rolls[0]).toEqual(roll);
+    expect(f.svc.view(f.room.id, f.other.hash).game!.rolls[0]).toEqual(roll);
+    const retry = f.svc.execute(f.guest.hash, envelope);
+    expect(retry.receipt).toEqual(first.receipt);
+    expect(retry.view!.game!.rolls).toEqual([roll]);
+    expect(f.run(f.guest.hash, { type: 'adjust', playerId, field: 'life', delta: -1 }).receipt.ok).toBe(
+      false,
+    );
+    expect(f.run(f.guest.hash, { ...command, playerId: randomUUID() }).receipt.error).toMatch(
+      /Unknown player/,
+    );
+    expect(f.svc.view(f.room.id, f.host.hash).game).toEqual(first.view!.game);
+  });
   it('lists only the guest’s own unfinished unexpired rooms without granting game access', () => {
     const f = fixture();
     expect(f.svc.recent(f.guest.hash)).toEqual([expect.objectContaining({ id: f.room.id, approved: false })]);
@@ -480,6 +503,54 @@ describe('authoritative room transactions', () => {
     const replacement = f.svc.session(f.host.token, true);
     expect(replacement.token).not.toBe(f.host.token);
     expect(() => f.svc.member(f.room.id, hash(replacement.token))).toThrow(/access/);
+  });
+  it.each(['expired', 'revoked'])('updates remaining guests when a %s session frees a seat', (reason) => {
+    const f = fixture();
+    f.approve();
+    f.run(f.guest.hash, { type: 'adjust', playerId: f.room.seats[0].id, field: 'life', delta: -1 });
+    const before = f.svc.view(f.room.id, f.host.hash);
+    const updatedAt = f.svc.recent(f.host.hash)[0].updatedAt;
+    expect(before.undoRoomRevision).toBe(before.revision);
+    const stale = f.envelope(f.host.hash, {
+      type: 'set',
+      playerId: f.room.seats[1].id,
+      field: 'life',
+      value: 55,
+    });
+    f.advance(10_000);
+    if (reason === 'expired')
+      f.db.prepare('UPDATE sessions SET expires_at=? WHERE hash=?').run(f.svc.now(), f.guest.hash);
+    else f.db.prepare('UPDATE sessions SET revoked=1 WHERE hash=?').run(f.guest.hash);
+    const changes: string[] = [];
+    f.svc.onChange = (roomId) => {
+      changes.push(roomId);
+      // Notifications must observe the committed removal, never its old seat.
+      const current = f.svc.view(roomId, f.host.hash);
+      expect(current.seats[0].taken).toBe(false);
+      expect(current.revision).toBe(before.revision + 1);
+      expect(current.undoRoomRevision).toBeUndefined();
+    };
+    f.svc.cleanup();
+    expect(changes).toEqual([f.room.id]);
+    const after = f.svc.view(f.room.id, f.host.hash);
+    expect(after.revision).toBe(before.revision + 1);
+    expect(after.undoRoomRevision).toBeUndefined();
+    expect(after.game).toEqual(before.game);
+    expect(after.expiresAt).toBe(before.expiresAt);
+    expect(f.svc.recent(f.host.hash)[0].updatedAt).toBe(updatedAt);
+    expect(after.members.some((m) => m.id === f.g.me.id)).toBe(false);
+    expect(after.seats[1].taken).toBe(true);
+    expect(f.svc.view(f.room.id, f.other.hash).seats[0].taken).toBe(false);
+    expect(f.svc.execute(f.host.hash, stale).receipt).toMatchObject({
+      ok: false,
+      revision: after.revision,
+      error: expect.stringMatching(/room changed/i),
+    });
+    expect(f.run(f.host.hash, { type: 'undo' }).receipt.error).toMatch(/intervening change/i);
+    expect(f.svc.view(f.room.id, f.host.hash).game).toEqual(before.game);
+    f.svc.cleanup();
+    expect(changes).toEqual([f.room.id]);
+    expect(f.svc.view(f.room.id, f.host.hash).revision).toBe(after.revision);
   });
   it('retains a receipt after process restart and beyond bounded history', () => {
     const dir = mkdtempSync(join(tmpdir(), 'mtg-room-'));

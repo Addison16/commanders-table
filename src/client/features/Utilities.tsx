@@ -14,11 +14,21 @@ export function Utilities({ onClose, onReplay }: { onClose: () => void; onReplay
   const game = useApp((s) => s.game)!,
     connected = useApp((s) => s.connected),
     mode = useApp((s) => s.mode),
+    room = useApp((s) => s.room),
+    profile = useApp((s) => s.profile),
     readOnly = useApp((s) => s.readOnly),
     pending = useApp((s) => s.pending),
     offset = useApp((s) => s.clockOffset);
   const [sides, setSides] = useState<4 | 6 | 8 | 10 | 12 | 20 | 100>(20),
     [count, setCount] = useState(1);
+  const [playerId, setPlayerId] = useState(() => {
+    const seat = mode === 'room' ? room?.me.seatId : profile.mySeat;
+    const preferred =
+      seat ??
+      (game.settings.turnTracking ? game.turn.playerId : null) ??
+      game.rolls.find((r) => r.playerId)?.playerId;
+    return preferred && game.players[preferred] ? preferred : '';
+  });
   // A newly committed result opens on the board, never in this sheet first.
   const [previousRolls] = useState(() => game.rolls.slice(0, 8));
   const [now, setNow] = useState(Date.now());
@@ -32,7 +42,13 @@ export function Utilities({ onClose, onReplay }: { onClose: () => void; onReplay
     host = enabled && isHost() && game.status === 'active';
   const eligible = game.order.filter((id) => !game.players[id].eliminated);
   const roll = (kind: Extract<Command, { type: 'roll' }>['kind']) =>
-    void act({ type: 'roll', kind, sides, count });
+    void act({
+      type: 'roll',
+      kind,
+      sides,
+      count,
+      ...((kind === 'dice' || kind === 'coin') && game.players[playerId] ? { playerId } : {}),
+    });
   return (
     <Sheet
       title="A little luck & magic"
@@ -66,6 +82,20 @@ export function Utilities({ onClose, onReplay }: { onClose: () => void; onReplay
           <Icon name="dice" />
           Roll the dice
         </h3>
+        <Field label="Roll for">
+          <select
+            value={game.players[playerId] ? playerId : ''}
+            onChange={(e) => setPlayerId(e.target.value)}
+          >
+            <option value="">The table · ivory dice</option>
+            {game.order.map((id) => (
+              <option key={id} value={id}>
+                {game.players[id].name} · {game.players[id].color}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <p className="hint">Choose a player to match their dice to their seat color.</p>
         <div className="dice-picker">
           {([4, 6, 8, 10, 12, 20, 100] as const).map((n) => (
             <button

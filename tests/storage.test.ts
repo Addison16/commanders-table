@@ -3,7 +3,77 @@ import { describe, it, expect, vi } from 'vitest';
 import { Repository, gameExport, parseImport } from '../src/client/storage/repository.js';
 import { createGame, defaultSetup, reduceGame, GAME_RECOVERY_MS } from '../src/shared/game.js';
 import { newId } from '../src/shared/random.js';
+import type { RoomView } from '../src/shared/schema.js';
+
+function roomView(): RoomView {
+  const game = createGame(defaultSetup(), newId, Date.now());
+  const member = {
+    id: newId(),
+    name: 'Alex',
+    seatId: null,
+    requestedSeat: null,
+    status: 'approved' as const,
+  };
+  return {
+    protocolVersion: 1,
+    id: newId(),
+    revision: 0,
+    gameId: game.id,
+    hostId: member.id,
+    me: member,
+    members: [member],
+    seats: game.order.map((id) => ({ id, name: game.players[id].name, taken: false })),
+    locked: false,
+    everyoneEdits: false,
+    expiresAt: Date.now() + 60_000,
+    retentionDays: 7,
+    serverTime: Date.now(),
+    game,
+  };
+}
+
 describe('local transactions and recovery', () => {
+  it('keeps both recent rooms when two tabs save their snapshots together', async () => {
+    const a = new Repository('a', newId());
+    const b = new Repository('b', a.databaseName);
+    await a.open();
+    await b.open();
+    const first = roomView();
+    const second = roomView();
+    await Promise.all([a.saveRoom(first), b.saveRoom(second)]);
+    expect((await a.recentRooms()).map((room) => room.id).sort()).toEqual([first.id, second.id].sort());
+    expect(await a.get(`room:${first.id}`)).toEqual(first);
+    expect(await a.get(`room:${second.id}`)).toEqual(second);
+  });
+  it('does not replace a newer saved room with a delayed snapshot from another tab', async () => {
+    const a = new Repository('a', newId());
+    const b = new Repository('b', a.databaseName);
+    await a.open();
+    await b.open();
+    const old = roomView();
+    const fresh = structuredClone(old);
+    fresh.revision = 1;
+    fresh.seats[0].name = 'Renamed player';
+    fresh.game!.players[fresh.seats[0].id].name = fresh.seats[0].name;
+    fresh.game!.revision = 1;
+    await a.saveRoom(fresh);
+    await b.saveRoom(old);
+    expect(await a.get(`room:${old.id}`)).toEqual(fresh);
+    expect((await a.recentRooms())[0].names[0]).toBe('Renamed player');
+  });
+  it('does not restore archived games deleted concurrently in different tabs', async () => {
+    const a = new Repository('a', newId());
+    const b = new Repository('b', a.databaseName);
+    await a.open();
+    await b.open();
+    const first = createGame(defaultSetup(), newId, 1000);
+    const second = createGame(defaultSetup(), newId, 2000);
+    const current = createGame(defaultSetup(), newId, 3000);
+    for (const game of [first, second, current]) await a.commit(game, undefined, true);
+    await Promise.all([a.deleteArchive(first.id), b.deleteArchive(second.id)]);
+    expect(await a.archive()).toEqual([]);
+    expect(await a.recentLocal()).toEqual([current]);
+  });
   it('keeps an ended game through a new game and reload, respects leases, and expires recovery', async () => {
     let now = 1_800_000_000_000;
     const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);

@@ -551,12 +551,28 @@ export class RoomService {
     return { receipt: result, view };
   }
   cleanup() {
-    const affected = this.db.prepare('SELECT id FROM rooms WHERE expires_at <= ?').all(this.now()) as {
-      id: string;
-    }[];
+    const now = this.now();
+    // Session deletion cascades to memberships, freeing seats even when the room
+    // itself is still active. Publish that change to the remaining guests too.
+    const affected = this.db
+      .prepare(
+        `SELECT id FROM rooms WHERE expires_at <= ?
+         UNION
+         SELECT m.room_id AS id FROM members m
+         JOIN sessions s ON s.hash = m.session_hash
+         WHERE s.expires_at <= ? OR s.revoked = 1`,
+      )
+      .all(now, now) as { id: string }[];
     this.db.transaction(() => {
-      this.db.prepare('DELETE FROM rooms WHERE expires_at <= ?').run(this.now());
-      this.db.prepare('DELETE FROM sessions WHERE expires_at <= ? OR revoked = 1').run(this.now());
+      this.db.prepare('DELETE FROM rooms WHERE expires_at <= ?').run(now);
+      this.db.prepare('DELETE FROM sessions WHERE expires_at <= ? OR revoked = 1').run(now);
+      // Membership changes need a new revision so delayed snapshots and stale
+      // corrections cannot restore the old seat state. Cleanup is not activity
+      // and must not extend room retention or change the gameplay snapshot.
+      const update = this.db.prepare(
+        'UPDATE rooms SET revision=revision+1,undo_room_revision=NULL WHERE id=?',
+      );
+      for (const room of affected) update.run(room.id);
     })();
     for (const r of affected) this.onChange(r.id);
   }

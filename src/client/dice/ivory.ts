@@ -13,17 +13,30 @@ const inks: Record<string, string> = {
   rose: '#642b43',
   copper: '#633f28',
 };
+// Soft pigments echo the seat colors while keeping the warm pearl highlights,
+// fine grain, and dark engraved numbers of the original ivory material.
+const pigments: Record<string, Vec> = {
+  ivory: [239, 228, 205],
+  blue: [164, 202, 240],
+  violet: [194, 179, 233],
+  ember: [245, 190, 161],
+  green: [181, 218, 192],
+  teal: [166, 222, 220],
+  rose: [243, 188, 205],
+  copper: [233, 202, 169],
+};
 function polygon(ctx: CanvasRenderingContext2D, points: Point[]) {
   ctx.beginPath();
   points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
   ctx.closePath();
 }
-function ivory(normal: Vec, coin: boolean, variation = 0) {
+export function diceSurfaceColor(normal: Vec, color: string, coin: boolean, variation = 0) {
   const key = Math.max(0, dot(normal, [-0.37, 0.53, 0.76]));
   const fill = Math.max(0, dot(normal, [0.65, 0.1, 0.75]));
   const gloss = Math.pow(Math.max(0, dot(normal, [-0.18, 0.3, 0.937])), coin ? 22 : 34);
   const light = 0.34 + key * 0.57 + fill * 0.16 + variation;
-  const pigment = coin ? [209, 175, 104] : [239, 228, 205];
+  const pigment =
+    coin && (color === 'ivory' || !pigments[color]) ? [209, 175, 104] : (pigments[color] ?? pigments.ivory);
   return `rgb(${pigment.map((c, i) => Math.round(Math.min(255, c * light + gloss * (coin ? 80 : 43) + (2 - i) * 3))).join(',')})`;
 }
 
@@ -43,13 +56,13 @@ export function drawIvoryDie(
   ctx.lineJoin = 'round';
   for (const surface of visible) {
     polygon(ctx, surface.points.map(project));
-    const color = ivory(surface.normal, coin);
+    const color = diceSurfaceColor(surface.normal, die.color, coin);
     if (surface.faceIndex !== undefined) {
       const [x, y] = project(surface.center);
       const gradient = ctx.createLinearGradient(x - scale * 0.6, y - scale * 0.7, x + scale * 0.6, y + scale);
-      gradient.addColorStop(0, ivory(surface.normal, coin, 0.035));
+      gradient.addColorStop(0, diceSurfaceColor(surface.normal, die.color, coin, 0.035));
       gradient.addColorStop(0.55, color);
-      gradient.addColorStop(1, ivory(surface.normal, coin, -0.035));
+      gradient.addColorStop(1, diceSurfaceColor(surface.normal, die.color, coin, -0.035));
       ctx.fillStyle = gradient;
     } else ctx.fillStyle = color;
     ctx.fill();

@@ -204,14 +204,21 @@ export class Repository {
     return ((await this.get<Game[]>('archive')) ?? []).filter((g) => gameSchema.safeParse(g).success);
   }
   async deleteArchive(id: string) {
-    await this.put(
-      'archive',
-      (await this.archive()).filter((g) => g.id !== id),
-    );
-    await this.put(
-      'unfinished',
-      ((await this.get<Game[]>('unfinished')) ?? []).filter((g) => g.id !== id),
-    );
+    const tx = this.memory ? undefined : this.db!.transaction('records', 'readwrite');
+    const records = tx?.store ?? {
+      get: (key: string) => this.get(key),
+      put: (value: unknown, key: string) => this.put(key, value),
+    };
+    // Updating both indexes in one transaction prevents another tab's save or
+    // deletion from being replaced by the list read before that change.
+    for (const key of ['archive', 'unfinished']) {
+      const games = ((await records.get(key)) as Game[] | undefined) ?? [];
+      await records.put(
+        games.filter((g) => g.id !== id),
+        key,
+      );
+    }
+    await tx?.done;
   }
   async recentLocal() {
     const stored = await this.get<Stored>('active');
@@ -259,8 +266,28 @@ export class Repository {
     return value ? gameSchema.parse(value) : undefined;
   }
   async saveRoom(view: RoomView) {
-    await this.put(`room:${view.id}`, view);
-    const recent = await this.recentRooms();
+    const tx = this.memory ? undefined : this.db!.transaction('records', 'readwrite');
+    const records = tx?.store ?? {
+      get: (key: string) => this.get(key),
+      put: (value: unknown, key: string) => this.put(key, value),
+    };
+    const previous = (await records.get(`room:${view.id}`)) as RoomView | undefined;
+    if (
+      previous &&
+      (previous.revision > view.revision ||
+        (previous.revision === view.revision && previous.serverTime > view.serverTime))
+    ) {
+      await tx?.done;
+      return;
+    }
+    const parsed = recentRoomSchema.array().safeParse((await records.get('recentRooms')) ?? []);
+    const recent = parsed.success
+      ? parsed.data.filter(
+          (room) =>
+            room.expiresAt > view.serverTime &&
+            (room.status === 'active' || (room.recoverUntil ?? 0) > view.serverTime),
+        )
+      : [];
     const item: RecentRoom = {
       id: view.id,
       gameId: view.gameId,
@@ -273,13 +300,15 @@ export class Repository {
       recoverUntil: view.game ? recoveryDeadline(view.game) : null,
       canReopen: view.hostId === view.me.id,
     };
-    await this.put(
-      'recentRooms',
+    await records.put(view, `room:${view.id}`);
+    await records.put(
       [
         ...(item.status === 'ended' && (item.recoverUntil ?? 0) <= view.serverTime ? [] : [item]),
         ...recent.filter((r) => r.id !== view.id),
       ].slice(0, 10),
+      'recentRooms',
     );
+    await tx?.done;
   }
   async recentRooms(): Promise<RecentRoom[]> {
     const result = recentRoomSchema.array().safeParse((await this.get('recentRooms')) ?? []);
