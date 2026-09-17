@@ -124,13 +124,13 @@ SMOKE_QEMU=/usr/local/bin/qemu-aarch64-static \
   node scripts/container-smoke.mjs mtg-util:arm64-smoke
 ```
 
-This fallback is an emulation-only verification image, not the published runtime. It needs neither privileged binfmt installation nor changes to host packages. Native ARM hardware and hosted CI execution remain separately unverified locally.
+This fallback is an emulation-only verification image, not the published runtime. It needs neither privileged binfmt installation nor changes to host packages. The [v0.1.0 release gate](https://github.com/Addison16/commanders-table/actions/runs/35163473158) also passed native amd64 and arm64 container checks on GitHub's Ubuntu runners.
 
 ## Publishing a release
 
-Source is prepared for `Addison16/commanders-table`, with images at `ghcr.io/addison16/commanders-table`. The workflow uses the repository owner's lowercase name, so a fork publishes under its own owner. Set `MTG_IMAGE` when consuming a fork's image. No Docker Hub account or stored registry password is needed: the workflow uses GitHub's scoped `GITHUB_TOKEN`.
+Source is published at `Addison16/commanders-table`, with public images at `ghcr.io/addison16/commanders-table`. The workflow uses the repository owner's lowercase name, so a fork publishes under its own owner. Set `MTG_IMAGE` when consuming a fork's image. No Docker Hub account or stored registry password is needed: the workflow uses GitHub's scoped `GITHUB_TOKEN`.
 
-For the first publication, create the public source repository, select the application license, push `main`, and enable GitHub Actions. Push the initial tag after verification:
+For a new fork, enable GitHub Actions and verify its image configuration before publishing. The initial release used:
 
 ```sh
 git tag v0.1.0
@@ -152,6 +152,8 @@ Release validation rejects a tag that differs from the package/lockfile version 
 
 Each release publishes a version tag and a full commit `sha-…` tag. Stable versions also update `stable` and `latest`; prereleases such as `v0.2.0-rc.1` do not move those aliases. Users pull the updated tag and recreate their container while keeping the same volume and origin, or use their Docker manager's update controls. Automatic unattended restarts require an updater configured by that server's operator.
 
-GitHub makes newly created personal container packages private initially, even when the source repository is public. After the first image publishes, open [the package settings](https://github.com/users/Addison16/packages/container/commanders-table/settings), select **Change visibility → Public**, and confirm. This is a one-time setting for the package; subsequent versions keep its visibility. See [GitHub's package visibility documentation](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility#configuring-visibility-of-packages-for-your-personal-account).
+The Commander's Table package is public, and its unauthenticated pull has been verified. For a new package or fork, check its visibility after the first image publishes. If it is private, open the package's settings, select **Change visibility → Public**, and confirm. Subsequent versions keep the package's visibility. See [GitHub's package visibility documentation](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility#configuring-visibility-of-packages-for-your-personal-account).
+
+Releases attach `compose.yaml` and `docker.env.example`. Copy the latter to `.env` before configuring the origin and starting Compose. The source file remains `.env.docker.example`; the workflow gives the download a visible filename that GitHub preserves.
 
 Verify both platform manifests and an unauthenticated pull before announcing availability. The digest in each GitHub release identifies the exact published image. Users can download the source ZIP/tarball directly from the release without installing Git.

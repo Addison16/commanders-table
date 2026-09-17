@@ -2,6 +2,8 @@
 
 A mobile-first companion for a physical Magic table. Track one to eight players on **One device**, or create a **Shared room** and invite friends by code, link, or QR. No accounts and no installation required.
 
+Get the [latest release](https://github.com/Addison16/commanders-table/releases/latest) or follow the [Docker setup](#docker) to host your own table.
+
 Commander damage belongs to individual commanders, including partners and your own commanders. Life, poison, cast counts, optional turns, timers, dice, and first-player selection share the same game model in both modes. Warnings are reminders; elimination and rules decisions stay with the players.
 
 | Four-player table                                             | Eight-player table                                              |
@@ -78,7 +80,7 @@ For LAN play, set `PUBLIC_ORIGIN` to the server's LAN address and use that addre
 
 Release images use **`ghcr.io/addison16/commanders-table`**, with `latest` and `stable` following stable releases and version tags such as `0.1.0` for a fixed release. Images support standard 64-bit PCs/servers (`amd64`) and 64-bit ARM machines (`arm64`). A tag becomes available after its release workflow succeeds.
 
-Download **compose.yaml** and **.env.docker.example** from [Releases](https://github.com/Addison16/commanders-table/releases). Put them in a folder, copy `.env.docker.example` to `.env`, and set `PUBLIC_ORIGIN` to the exact address your phones will open—for example, `http://192.168.1.50:8080`. Then run:
+Download **compose.yaml** and **docker.env.example** from [Releases](https://github.com/Addison16/commanders-table/releases). Put them in a folder, copy `docker.env.example` to `.env`, and set `PUBLIC_ORIGIN` to the exact address your phones will open—for example, `http://192.168.1.50:8080`. The source checkout keeps this example at `.env.docker.example`. Then run:
 
 ```sh
 docker compose -p mtg-util -f compose.yaml pull

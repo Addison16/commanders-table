@@ -1,10 +1,18 @@
 # Verification record
 
+## September 16 public release and deployment
+
+[Release v0.1.0](https://github.com/Addison16/commanders-table/releases/tag/v0.1.0) is published under MIT. Both [main verification](https://github.com/Addison16/commanders-table/actions/runs/35163472611) and the [release workflow](https://github.com/Addison16/commanders-table/actions/runs/35163473158) passed: 58 unit/integration checks, 39 Chromium/WebKit journeys with 3 expected skips, production PWA updates and origin-outage reloads, HTTPS/cookie/CSRF/WSS checks, and native amd64/arm64 container smoke tests.
+
+Anonymous registry requests verified both platform manifests and matching `0.1.0`, `stable`, and `latest` tags at `sha256:c93896565678eddcdccc08254d4c70cf1ed6407650376ec26c5395249c2b6b88`. An empty Docker credential directory successfully pulled the public image, and the downloaded x64 image passed the full isolated container smoke. Public source access, MIT license metadata, release notes/digest, both setup-file downloads, exact file contents, and the downloaded Compose configuration were verified. GitHub had normalized the dot-prefixed environment asset name; the published download and future workflow now use `docker.env.example` consistently.
+
+The live deployment now uses the published `latest` image through `compose.yaml`, retaining its existing Compose project, volume, and HTTPS origin. A fresh `before-public-release-20260916.sqlite` backup passed integrity checks and was copied out before recreation. Checksums matched for all 38 rooms, 62 memberships, 194 events, and 65 session identities/revocation flags. Health and the new title passed in a browser over the configured HTTPS origin. A browser holding the prior service worker applied **Save & update**, displayed the new name, and retained the same local game ID and 39-life score. The previous app remains available as `mtg-util:before-commanders-table-20260916`.
+
 ## September 16 Commander's Table naming
 
 The chosen name is applied to the interface, browser/install metadata, exported filenames, source repository links, and published image configuration. Internal storage and protocol identifiers are unchanged for compatibility. TypeScript, ESLint, the production build, all 58 unit/integration checks, and eight focused Chromium/WebKit layout, saved-game, and accessibility journeys pass. Updated four/eight-player and sideways-table screenshots show the new heading; the 320-pixel layout remains within the viewport. The release workflows pass `actionlint`, and the downloadable Compose/environment example validates.
 
-The first hosted run passed native amd64/arm64 container checks and 38 browser cases. Its WebKit accessibility trace showed the audited tab left hidden by Axe's temporary page, freezing the panel entrance at half opacity. The accessibility journey now brings the app to the foreground and waits for full panel opacity before scanning; it retains all contrast checks.
+The first hosted run passed native amd64/arm64 container checks and 38 browser cases. Its WebKit accessibility trace sampled the panel entrance at half opacity. Axe opens a temporary page that can background the app; the accessibility journey now brings the app to the foreground and waits for full panel opacity before scanning. It retains all contrast checks and passes in both subsequent hosted runs.
 
 ## September 16 public-release preparation
 

@@ -75,7 +75,7 @@ jobs:
           else
             printf "# Commander's Table %s\n\n" "$RELEASE_TAG" > "$notes"
           fi
-          printf '\n## Docker image\n\n`docker pull %s:%s`\n\nDigest: `%s@%s`\n\nDownload `compose.yaml` and `.env.docker.example` below. See the [Docker guide](https://github.com/%s/blob/%s/docs/deployment.md) for installation and updates.\n' "$IMAGE_NAME" "${RELEASE_TAG#v}" "$IMAGE_NAME" "$IMAGE_DIGEST" "$GH_REPO" "$RELEASE_TAG" >> "$notes"
+          printf '\n## Docker image\n\n`docker pull %s:%s`\n\nDigest: `%s@%s`\n\nDownload `compose.yaml` and `docker.env.example` below. Copy `docker.env.example` to `.env` and set `PUBLIC_ORIGIN` to the address your phones will open. See the [Docker guide](https://github.com/%s/blob/%s/docs/deployment.md) for installation and updates.\n' "$IMAGE_NAME" "${RELEASE_TAG#v}" "$IMAGE_NAME" "$IMAGE_DIGEST" "$GH_REPO" "$RELEASE_TAG" >> "$notes"
           release_options=()
           if [[ "$RELEASE_TAG" == *-* ]]; then release_options+=(--prerelease --latest=false); fi
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
@@ -83,4 +83,5 @@ jobs:
           else
             gh release create "$RELEASE_TAG" --verify-tag --title "Commander's Table $RELEASE_TAG" --notes-file "$notes" "${release_options[@]}"
           fi
-          gh release upload "$RELEASE_TAG" compose.yaml .env.docker.example --clobber
+          cp .env.docker.example "$RUNNER_TEMP/docker.env.example"
+          gh release upload "$RELEASE_TAG" compose.yaml "$RUNNER_TEMP/docker.env.example" --clobber
