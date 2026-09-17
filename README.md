@@ -72,6 +72,12 @@ If browser storage is blocked, local play continues in memory with a visible war
 
 ## Docker
 
+Pull the latest published image:
+
+```sh
+docker pull ghcr.io/addison16/commanders-table:latest
+```
+
 Build and start locally:
 
 ```sh

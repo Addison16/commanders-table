@@ -77,7 +77,9 @@ jobs:
           else
             printf "# Commander's Table %s\n\n" "$RELEASE_TAG" > "$notes"
           fi
-          printf '\n## Docker image\n\n`docker pull %s:%s`\n\nDigest: `%s@%s`\n\nDownload `compose.yaml` and `docker.env.example` below. Copy `docker.env.example` to `.env` and set `PUBLIC_ORIGIN` to the address your phones will open. See the [Docker guide](https://github.com/%s/blob/%s/docs/deployment.md) for installation and updates.\n' "$IMAGE_NAME" "${RELEASE_TAG#v}" "$IMAGE_NAME" "$IMAGE_DIGEST" "$GH_REPO" "$RELEASE_TAG" >> "$notes"
+          pull_tag=latest
+          if [[ "$RELEASE_TAG" == *-* ]]; then pull_tag="${RELEASE_TAG#v}"; fi
+          printf '\n## Docker image\n\n`docker pull %s:%s`\n\nDigest: `%s@%s`\n\nDownload `compose.yaml` and `docker.env.example` below. Copy `docker.env.example` to `.env` and set `PUBLIC_ORIGIN` to the address your phones will open. See the [Docker guide](https://github.com/%s/blob/%s/docs/deployment.md) for installation and updates.\n' "$IMAGE_NAME" "$pull_tag" "$IMAGE_NAME" "$IMAGE_DIGEST" "$GH_REPO" "$RELEASE_TAG" >> "$notes"
           release_options=()
           if [[ "$RELEASE_TAG" == *-* ]]; then release_options+=(--prerelease --latest=false); fi
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
