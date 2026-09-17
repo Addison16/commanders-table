@@ -44,11 +44,12 @@ test('player dice use colored pearl bodies and preserve the seat through rerolls
   await page.getByRole('button', { name: 'Player 1 details', exact: true }).click();
   await page.getByText('Edit player & commanders', { exact: true }).click();
   await page.getByRole('combobox', { name: 'Player color', exact: true }).selectOption('blue');
-  await page.getByRole('button', { name: 'Save player', exact: true }).click();
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await expect(page.getByText('Changes saved.', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Close Player 1', exact: true }).click();
   const playerId = (await saved(page)).order[0];
   await page.getByRole('button', { name: 'Utilities', exact: true }).click();
-  await page.getByRole('combobox', { name: 'Roll for', exact: true }).selectOption(playerId);
+  await expect(page.getByRole('combobox', { name: 'Roll for', exact: true })).toHaveValue(playerId);
   await page.getByRole('button', { name: 'd6', exact: true }).click();
   await page.getByRole('combobox', { name: 'Number of dice', exact: true }).selectOption('2');
   await page.getByRole('button', { name: 'Roll 2d6', exact: true }).click();
@@ -79,7 +80,8 @@ test('player dice use colored pearl bodies and preserve the seat through rerolls
   await page.getByRole('button', { name: 'Player 2 details', exact: true }).click();
   await page.getByText('Edit player & commanders', { exact: true }).click();
   await page.getByRole('combobox', { name: 'Player color', exact: true }).selectOption('rose');
-  await page.getByRole('button', { name: 'Save player', exact: true }).click();
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await expect(page.getByText('Changes saved.', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Close Player 2', exact: true }).click();
   await page.getByRole('button', { name: 'Utilities', exact: true }).click();
   await page.evaluate(() => {
@@ -104,4 +106,49 @@ test('player dice use colored pearl bodies and preserve the seat through rerolls
     await expect(page.locator('.toast')).toHaveCount(0);
     await page.screenshot({ path: 'docs/screenshots/player-colored-dice.png' });
   }
+});
+
+test('saving a player color makes their ordinary d20 match without another player selection', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Quick 4 · 40 life' }).click();
+  const playerId = (await saved(page)).order[2];
+
+  // Use the third seat so a default to the first player cannot hide the bug.
+  await page.getByRole('button', { name: 'Player 3 details', exact: true }).click();
+  await page.getByText('Edit player & commanders', { exact: true }).click();
+  await page.getByRole('textbox', { name: 'Player name', exact: true }).fill('Mira');
+  await page.getByRole('combobox', { name: 'Player color', exact: true }).selectOption('blue');
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await expect(page.getByText('Changes saved.', { exact: true })).toBeVisible();
+  await expect.poll(async () => (await saved(page)).players[playerId].name).toBe('Mira');
+  await page.getByRole('button', { name: 'Close Mira', exact: true }).click();
+
+  await page.getByRole('button', { name: 'Utilities', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Roll for', exact: true })).toHaveValue(playerId);
+  await page.getByRole('button', { name: 'Roll 1d20', exact: true }).click();
+  await expect(page.getByTestId('dice-result')).toHaveAttribute('data-revealed', 'true');
+  await expect(page.locator('.dice-screen-heading')).toContainText('rolled for Mira');
+  await expect.poll(() => coloredPixels(page, 'blue')).toBeGreaterThan(500);
+  const first = (await saved(page)).rolls[0];
+  expect(first.playerId).toBe(playerId);
+  await page.getByRole('button', { name: 'Back to game', exact: true }).click();
+
+  await page.getByRole('button', { name: 'Mira details', exact: true }).click();
+  await page.getByText('Edit player & commanders', { exact: true }).click();
+  await page.getByRole('combobox', { name: 'Player color', exact: true }).selectOption('rose');
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await expect(page.getByText('Changes saved.', { exact: true })).toBeVisible();
+  await expect.poll(async () => (await saved(page)).players[playerId].color).toBe('rose');
+  await page.getByRole('button', { name: 'Close Mira', exact: true }).click();
+  await page.getByRole('button', { name: 'Utilities', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Roll for', exact: true })).toHaveValue(playerId);
+  await page.getByRole('button', { name: 'Roll 1d20', exact: true }).click();
+  await expect.poll(async () => (await saved(page)).rolls[0].id).not.toBe(first.id);
+  await expect(page.getByTestId('dice-result')).toHaveAttribute('data-revealed', 'true');
+  await expect(page.locator('.dice-screen-heading')).toContainText('rolled for Mira');
+  await expect.poll(() => coloredPixels(page, 'rose')).toBeGreaterThan(500);
+  expect((await saved(page)).rolls[0].playerId).toBe(playerId);
 });

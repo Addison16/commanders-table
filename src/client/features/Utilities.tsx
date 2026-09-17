@@ -4,6 +4,7 @@ import { type Command, type Roll } from '../../shared/schema.js';
 import { act, isHost, useApp, takeOver, report } from '../app/store.js';
 import { Field, Icon, Sheet, Toggle } from '../components/ui.js';
 import { rollTitle } from '../dice/DiceRoll.js';
+import { preferredDicePlayer, rememberDicePlayer } from '../dice/preference.js';
 const formatTime = (ms: number) => {
   const sec = Math.floor(ms / 1000);
   return [Math.floor(sec / 3600), Math.floor((sec / 60) % 60), sec % 60]
@@ -21,14 +22,9 @@ export function Utilities({ onClose, onReplay }: { onClose: () => void; onReplay
     offset = useApp((s) => s.clockOffset);
   const [sides, setSides] = useState<4 | 6 | 8 | 10 | 12 | 20 | 100>(20),
     [count, setCount] = useState(1);
-  const [playerId, setPlayerId] = useState(() => {
-    const seat = mode === 'room' ? room?.me.seatId : profile.mySeat;
-    const preferred =
-      seat ??
-      (game.settings.turnTracking ? game.turn.playerId : null) ??
-      game.rolls.find((r) => r.playerId)?.playerId;
-    return preferred && game.players[preferred] ? preferred : '';
-  });
+  const [playerId, setPlayerId] = useState(() =>
+    preferredDicePlayer(game, { mode, ownedSeat: room?.me.seatId, localSeat: profile.mySeat }),
+  );
   // A newly committed result opens on the board, never in this sheet first.
   const [previousRolls] = useState(() => game.rolls.slice(0, 8));
   const [now, setNow] = useState(Date.now());
@@ -85,7 +81,10 @@ export function Utilities({ onClose, onReplay }: { onClose: () => void; onReplay
         <Field label="Roll for">
           <select
             value={game.players[playerId] ? playerId : ''}
-            onChange={(e) => setPlayerId(e.target.value)}
+            onChange={(e) => {
+              setPlayerId(e.target.value);
+              rememberDicePlayer(game.id, e.target.value);
+            }}
           >
             <option value="">The table · ivory dice</option>
             {game.order.map((id) => (
@@ -95,7 +94,7 @@ export function Utilities({ onClose, onReplay }: { onClose: () => void; onReplay
             ))}
           </select>
         </Field>
-        <p className="hint">Choose a player to match their dice to their seat color.</p>
+        <p className="hint">Dice match this player’s current color. Choose the table for ivory dice.</p>
         <div className="dice-picker">
           {([4, 6, 8, 10, 12, 20, 100] as const).map((n) => (
             <button

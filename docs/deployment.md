@@ -142,7 +142,7 @@ git push origin v0.1.0
 For subsequent releases, update the package and lockfile together, add notes under `docs/releases/vX.Y.Z.md`, commit, and tag that commit:
 
 ```sh
-npm version 0.1.3 --no-git-tag-version
+npm version 0.1.4 --no-git-tag-version
 node scripts/check-release.mjs v0.1.4
 git add package.json package-lock.json docs/releases/v0.1.4.md
 git commit -m "Release v0.1.4"
@@ -158,4 +158,4 @@ The Commander's Table package is public, and its unauthenticated pull has been v
 
 Releases attach `compose.yaml` and `docker.env.example`. Copy the latter to `.env` before configuring the origin and starting Compose. The source file remains `.env.docker.example`; the workflow gives the download a visible filename that GitHub preserves.
 
-Verify both platform manifests and an unauthenticated pull before announcing availability. The digest in each GitHub release identifies the exact published image. Users can download the source ZIP/tarball directly from the release without installing Git.
+Verify both platform manifests and an unauthenticated pull before announcing availability. The digest in each GitHub release identifies the exact versioned image index. The `latest` tag uses a separate index with the same platform images so GitHub’s generated install command stays on `latest`. Users can download the source ZIP/tarball directly from the release without installing Git.

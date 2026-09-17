@@ -30,6 +30,22 @@ let pending: Envelope[] = [],
   attempts = 0,
   lastPong = 0,
   activeRoom = '';
+const confirmations = new Map<
+  string,
+  {
+    roomId: string;
+    gameId: string;
+    finish: (saved: boolean) => void;
+    timer: ReturnType<typeof setTimeout>;
+  }
+>();
+function finishConfirmation(operationId: string, saved: boolean) {
+  const waiting = confirmations.get(operationId);
+  if (!waiting) return;
+  confirmations.delete(operationId);
+  clearTimeout(waiting.timer);
+  waiting.finish(saved);
+}
 class ApiError extends Error {
   constructor(
     message: string,
@@ -192,6 +208,7 @@ async function receipt(r: Receipt) {
   preview();
 }
 function pause() {
+  for (const id of confirmations.keys()) finishConfirmation(id, false);
   useApp.setState({ connected: false });
   dispatchEvent(new Event('mtg-cancel-input'));
 }
@@ -285,7 +302,26 @@ export async function connectRoom(roomId: string) {
         }
         if (msg.view) acceptView(msg.view);
         else preview();
-        if (msg.type === 'error') report(new Error(msg.error));
+        if (msg.receipt) {
+          const waiting = confirmations.get(msg.receipt.operationId);
+          const current = useApp.getState();
+          finishConfirmation(
+            msg.receipt.operationId,
+            !!(
+              msg.receipt.ok &&
+              waiting &&
+              current.mode === 'room' &&
+              current.room?.id === waiting.roomId &&
+              current.confirmed?.id === waiting.gameId &&
+              msg.receipt.gameId === waiting.gameId &&
+              current.room.revision >= msg.receipt.revision
+            ),
+          );
+        }
+        if (msg.type === 'error') {
+          for (const id of confirmations.keys()) finishConfirmation(id, false);
+          report(new Error(msg.error));
+        }
       } catch {
         report(new Error('An invalid server message was ignored. Reconnecting for a fresh snapshot.'));
         void connectRoom(roomId);
@@ -323,7 +359,7 @@ export async function connectRoom(roomId: string) {
     }
   }
 }
-async function send(command: Command | AdminCommand, groupId?: string) {
+async function send(command: Command | AdminCommand, groupId?: string, track?: (envelope: Envelope) => void) {
   const state = useApp.getState();
   if (!state.connected || !state.room || socket?.readyState !== WebSocket.OPEN)
     throw new Error('Reconnecting — changes paused. No new changes were queued.');
@@ -341,6 +377,7 @@ async function send(command: Command | AdminCommand, groupId?: string) {
     command,
     groupId,
   };
+  track?.(env);
   // A durable envelope is saved before any bytes leave this device.
   pending.push(env);
   preview();
@@ -379,7 +416,27 @@ async function send(command: Command | AdminCommand, groupId?: string) {
   }
   targetSocket.send(JSON.stringify({ type: 'command', csrf, envelope: env }));
 }
-registerRoom(send, disconnect);
+function savePlayer(command: Extract<Command, { type: 'editPlayer' }>): Promise<boolean> {
+  return new Promise((resolve) => {
+    let operationId: string | undefined;
+    void send(command, undefined, (env) => {
+      operationId = env.operationId;
+      const timer = setTimeout(() => {
+        report(
+          new Error('The save has not been confirmed. Your edits have been kept while the room reconnects.'),
+        );
+        finishConfirmation(env.operationId, false);
+        if (activeRoom === env.roomId && useApp.getState().mode === 'room') void connectRoom(env.roomId);
+      }, 12_000);
+      confirmations.set(env.operationId, { roomId: env.roomId, gameId: env.gameId, finish: resolve, timer });
+    }).catch((error) => {
+      report(error);
+      if (operationId) finishConfirmation(operationId, false);
+      else resolve(false);
+    });
+  });
+}
+registerRoom(send, disconnect, savePlayer);
 export async function createRoom(setup: Setup, displayName: string) {
   await session(true);
   const view = await api<RoomView>('/rooms', {

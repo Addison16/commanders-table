@@ -60,10 +60,17 @@ let queue = Promise.resolve();
 let editorResume: Promise<void> | undefined;
 let localPending: { command: Command; context: Parameters<typeof reduceGame>[2] }[] = [];
 let roomSend: ((command: Command | AdminCommand, groupId?: string) => Promise<void>) | undefined;
+type PlayerSave = Extract<Command, { type: 'editPlayer' }>;
+let roomSavePlayer: ((command: PlayerSave) => Promise<boolean>) | undefined;
 let disconnectRoom: (() => void) | undefined;
-export function registerRoom(send: typeof roomSend, disconnect: () => void) {
+export function registerRoom(
+  send: typeof roomSend,
+  disconnect: () => void,
+  savePlayer?: typeof roomSavePlayer,
+) {
   roomSend = send;
   disconnectRoom = disconnect;
+  roomSavePlayer = savePlayer;
 }
 export function errorMessage(e: unknown) {
   return e instanceof Error ? e.message : 'Something went wrong. Please try again.';
@@ -207,6 +214,92 @@ export function act(command: Command | AdminCommand, groupId?: string): Promise<
     }
   });
   return queue;
+}
+
+/** A player editor may discard its draft only after this returns true. */
+export async function savePlayer(command: PlayerSave): Promise<boolean> {
+  try {
+    await editorResume;
+  } catch (error) {
+    report(error);
+    return false;
+  }
+  const state = useApp.getState();
+  if (state.mode === 'room') {
+    if (!roomSavePlayer) {
+      report(new Error('Reconnect before saving this player. Your edits have been kept.'));
+      return false;
+    }
+    try {
+      return await roomSavePlayer(command);
+    } catch (error) {
+      report(error);
+      return false;
+    }
+  }
+  if (!state.game || state.readOnly || state.recovery) {
+    report(new Error('Take over this tab or resolve storage recovery before editing.'));
+    return false;
+  }
+  const gameId = state.game.id;
+  const context = {
+    id: newId(),
+    operationId: newId(),
+    now: Date.now(),
+    actorId: state.profile.installationId,
+    actor: 'This device',
+  };
+  // Use the same durable queue as life changes, without previewing a successful
+  // player edit before its write completes or discarding another queued change.
+  const result = queue
+    .catch(report)
+    .then(async () => {
+      const current = useApp.getState();
+      const confirmed = current.confirmed;
+      if (
+        current.mode !== 'local' ||
+        !confirmed ||
+        confirmed.id !== gameId ||
+        current.readOnly ||
+        current.recovery
+      ) {
+        report(new Error('The game changed before saving. Your edits have been kept.'));
+        return false;
+      }
+      let writing = false;
+      try {
+        const next = reduceGame(confirmed, command, context);
+        writing = true;
+        await repository.commit(next, confirmed);
+        const active = useApp.getState();
+        if (active.mode !== 'local' || active.confirmed?.id !== gameId) return false;
+        renderLocalPending(next);
+        channel?.postMessage('changed');
+        return true;
+      } catch (error) {
+        if (error instanceof ConflictError) {
+          localPending = [];
+          const active = await repository.active();
+          if (useApp.getState().mode === 'local') {
+            useApp.setState({ readOnly: true });
+            if (active.game) renderLocalPending(active.game);
+          }
+        } else if (writing) {
+          useApp.setState({
+            storageWarning:
+              'The player could not be saved. Your edits have been kept; check available browser storage.',
+          });
+        }
+        report(error);
+        return false;
+      }
+    })
+    .catch((error) => {
+      report(error);
+      return false;
+    });
+  queue = result.then(() => {});
+  return result;
 }
 export async function startLocal(setup: Setup, source?: Game) {
   await editorResume;

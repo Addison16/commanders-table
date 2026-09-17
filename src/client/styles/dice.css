@@ -280,9 +280,6 @@
   .edit-player form {
     padding-bottom: 14px;
   }
-  .edit-player form + form {
-    border-top: 1px solid var(--line);
-  }
 }
 @layer responsive {
   @media (max-height: 500px) and (orientation: landscape) {

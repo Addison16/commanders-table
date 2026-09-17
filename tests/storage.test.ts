@@ -33,6 +33,41 @@ function roomView(): RoomView {
 }
 
 describe('local transactions and recovery', () => {
+  it('handles an aborted save without leaking a rejection or partially committing, then retries', async () => {
+    const repository = new Repository('a', newId());
+    await repository.open();
+    const original = createGame(defaultSetup(), newId, 1000);
+    await repository.commit(original, undefined, true);
+    const changed = reduceGame(
+      original,
+      { type: 'customize', playerId: original.order[0], name: 'Retry Rowan', color: 'teal' },
+      { id: newId(), operationId: newId(), actorId: 'a', actor: 'Alex', now: 2000 },
+    );
+    const put = IDBObjectStore.prototype.put;
+    let fail = true;
+    const fault = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (
+      this: IDBObjectStore,
+      value: unknown,
+      key?: IDBValidKey,
+    ) {
+      const request = put.call(this, value, key);
+      if (this.name === 'records' && key === 'active' && fail) {
+        fail = false;
+        this.transaction.abort();
+      }
+      return request;
+    });
+    try {
+      await expect(repository.commit(changed, original)).rejects.toMatchObject({ name: 'AbortError' });
+      expect((await repository.active()).game).toEqual(original);
+      expect(await repository.checkpoint()).toBeUndefined();
+      await repository.commit(changed, original);
+      expect((await repository.active()).game).toEqual(changed);
+      expect(await repository.checkpoint()).toEqual(original);
+    } finally {
+      fault.mockRestore();
+    }
+  });
   it('keeps both recent rooms when two tabs save their snapshots together', async () => {
     const a = new Repository('a', newId());
     const b = new Repository('b', a.databaseName);

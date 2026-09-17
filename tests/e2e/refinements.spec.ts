@@ -83,9 +83,8 @@ test('names, commanders, optional turns and original unfinished games survive sw
   await page.getByRole('button', { name: 'Record combat damage', exact: true }).click();
   await page.getByText('Edit player & commanders', { exact: true }).click();
   await page.getByLabel('Player name', { exact: true }).fill('Mira');
-  await page.getByRole('button', { name: 'Save player', exact: true }).click();
   await page.getByLabel('Commander 1 name', { exact: true }).fill('Atraxa');
-  await page.getByRole('button', { name: 'Save commander 1', exact: true }).click();
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
   await page.getByRole('button', { name: 'Close Mira', exact: true }).click();
   await expect(page.getByTestId('life-0')).toHaveText('35');
   await page.getByRole('button', { name: 'Utilities', exact: true }).click();

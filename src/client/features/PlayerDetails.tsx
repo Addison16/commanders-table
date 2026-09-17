@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { palettes, type Game } from '../../shared/schema.js';
-import { act, canEdit, isHost, useApp, updateProfile } from '../app/store.js';
+import { act, canEdit, isHost, savePlayer, useApp, updateProfile } from '../app/store.js';
 import { ask, Field, Icon, Sheet, Toggle } from '../components/ui.js';
 import { HoldButton } from '../components/HoldButton.js';
 import { facesAcross } from './TableLayout.js';
 import { CommanderInput } from '../components/CommanderInput.js';
 import { CommanderCredits } from '../components/CommanderArtwork.js';
 import type { CommanderCard } from '../../shared/cards.js';
+import { rememberDicePlayer } from '../dice/preference.js';
 
 // Untouched fields follow the live game. Once edited, a field keeps its draft
 // through local steps and remote updates until that draft is submitted.
@@ -102,6 +103,12 @@ export function PlayerDetails({ playerId, onClose }: { playerId: string; onClose
   const [subtractLife, setSubtractLife] = useState(true);
   const [name, setName, resetName] = useLiveDraft(player.name),
     [color, setColor, resetColor] = useLiveDraft(player.color);
+  const [commanderDrafts, setCommanderDrafts] = useState<
+    Record<string, { label: string; card: CommanderCard | null }>
+  >({});
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('');
+  const commanders = Object.values(game.commanders).filter((c) => c.ownerId === playerId);
   const disabled = !canEdit(playerId) || player.eliminated || game.status === 'ended';
   const manage =
     !readOnly &&
@@ -121,33 +128,97 @@ export function PlayerDetails({ playerId, onClose }: { playerId: string; onClose
           Edit player & commanders
         </summary>
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            void act({ type: 'customize', playerId, name, color }).then(() => {
+            if (!manage || saving) return;
+            setSaving(true);
+            setSaveStatus('');
+            try {
+              const saved = await savePlayer({
+                type: 'editPlayer',
+                playerId,
+                name,
+                color,
+                commanders: commanders.map((commander) => ({
+                  id: commander.id,
+                  ...(commanderDrafts[commander.id] ?? {
+                    label: commander.label,
+                    card: commander.card ?? null,
+                  }),
+                })),
+              });
+              if (!saved) {
+                setSaveStatus('Save not confirmed. Your edits are still here.');
+                return;
+              }
+              if (mode === 'local') rememberDicePlayer(game.id, playerId);
               resetName();
               resetColor();
-            });
+              setCommanderDrafts((current) =>
+                Object.fromEntries(
+                  Object.entries(current).filter(([id, draft]) => draft !== commanderDrafts[id]),
+                ),
+              );
+              setSaveStatus('Changes saved.');
+            } finally {
+              setSaving(false);
+            }
           }}
         >
           <Field label="Player name">
-            <input value={name} maxLength={40} required onChange={(e) => setName(e.target.value)} />
+            <input
+              value={name}
+              maxLength={40}
+              required
+              disabled={!manage || saving}
+              onChange={(e) => {
+                setName(e.target.value);
+                setSaveStatus('');
+              }}
+            />
           </Field>
           <Field label="Player color">
-            <select value={color} onChange={(e) => setColor(e.target.value as typeof color)}>
+            <select
+              value={color}
+              disabled={!manage || saving}
+              onChange={(e) => {
+                setColor(e.target.value as typeof color);
+                setSaveStatus('');
+              }}
+            >
               {palettes.map((c) => (
                 <option key={c}>{c}</option>
               ))}
             </select>
           </Field>
-          <button className="secondary full" disabled={!manage}>
-            Save player
+          {commanders.map((commander, index) => {
+            const selection = commanderDrafts[commander.id] ?? {
+              label: commander.label,
+              card: commander.card ?? null,
+            };
+            return (
+              <CommanderInput
+                key={commander.id}
+                label={`Commander ${index + 1} name`}
+                value={selection.label}
+                card={selection.card}
+                disabled={!manage || saving}
+                onChange={(label, card) => {
+                  setCommanderDrafts((current) => ({ ...current, [commander.id]: { label, card } }));
+                  setSaveStatus('');
+                }}
+              />
+            );
+          })}
+          <button className="secondary full" disabled={!manage || saving}>
+            {saving ? 'Saving…' : 'Save changes'}
           </button>
+          {saveStatus && (
+            <p className="hint" role="status">
+              {saveStatus}
+            </p>
+          )}
         </form>
-        {Object.values(game.commanders)
-          .filter((c) => c.ownerId === playerId)
-          .map((c, index) => (
-            <CommanderName key={c.id} commander={c} number={index + 1} disabled={!manage} />
-          ))}
         {!manage && (
           <p className="hint">
             {readOnly
@@ -365,45 +436,6 @@ function DamageCorrection({
         />
       </label>
       <button disabled={disabled}>Correct</button>
-    </form>
-  );
-}
-
-function CommanderName({
-  commander,
-  number,
-  disabled,
-}: {
-  commander: Game['commanders'][string];
-  number: number;
-  disabled: boolean;
-}) {
-  const [draft, setDraft] = useState<{ label: string; card: CommanderCard | null }>();
-  const selection = draft ?? { label: commander.label, card: commander.card ?? null };
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        void act({
-          type: 'commanderName',
-          commanderId: commander.id,
-          label: selection.label,
-          card: selection.card,
-        }).then(() => {
-          setDraft((current) => (current === draft ? undefined : current));
-        });
-      }}
-    >
-      <CommanderInput
-        label={`Commander ${number} name`}
-        value={selection.label}
-        card={selection.card}
-        disabled={disabled}
-        onChange={(label, card) => setDraft({ label, card })}
-      />
-      <button className="secondary full" disabled={disabled}>
-        Save commander {number}
-      </button>
     </form>
   );
 }

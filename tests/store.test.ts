@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createGame, defaultSetup, reduceGame } from '../src/shared/game.js';
 import { newId } from '../src/shared/random.js';
-import type { Game, RoomView } from '../src/shared/schema.js';
+import type { Command, Game, RoomView } from '../src/shared/schema.js';
 import { Repository } from '../src/client/storage/repository.js';
 
 let store: typeof import('../src/client/app/store.js');
@@ -119,6 +119,86 @@ function expectLocal(game: Game) {
 }
 
 describe('local game transitions and recovery', () => {
+  it('confirms a unified player save only after its durable commit finishes', async () => {
+    await store.startLocal(defaultSetup(2));
+    const original = store.useApp.getState().game!;
+    const playerId = original.order[0];
+    const command: Extract<Command, { type: 'editPlayer' }> = {
+      type: 'editPlayer',
+      playerId,
+      name: 'Rowan',
+      color: 'teal',
+      commanders: Object.values(original.commanders)
+        .filter((c) => c.ownerId === playerId)
+        .map((c) => ({ id: c.id, label: 'A new commander' })),
+    };
+    const actualCommit = store.repository.commit.bind(store.repository);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const commit = vi.spyOn(store.repository, 'commit').mockImplementationOnce(async (...args) => {
+      await gate;
+      await actualCommit(...args);
+    });
+    const saved = vi.fn();
+    const saving = store.savePlayer(command).then((result) => {
+      saved(result);
+      return result;
+    });
+    await vi.waitFor(() => expect(commit).toHaveBeenCalledOnce());
+    expect(saved).not.toHaveBeenCalled();
+    expect(store.useApp.getState().game).toEqual(original);
+    release();
+    expect(await saving).toBe(true);
+    const reader = await reopenedStorage();
+    const game = (await reader.active()).game!;
+    expect(game.players[playerId]).toMatchObject({ name: 'Rowan', color: 'teal' });
+    expect(game.commanders[command.commanders[0].id].label).toBe('A new commander');
+    expect(game.revision).toBe(original.revision + 1);
+    expect(game.undo).toHaveLength(1);
+  });
+
+  it('returns false on a rejected local write without losing the original or poisoning subsequent saves', async () => {
+    await store.startLocal(defaultSetup(2));
+    const original = store.useApp.getState().game!;
+    const playerId = original.order[0];
+    const command: Extract<Command, { type: 'editPlayer' }> = {
+      type: 'editPlayer',
+      playerId,
+      name: 'Rowan',
+      color: 'teal',
+      commanders: Object.values(original.commanders)
+        .filter((c) => c.ownerId === playerId)
+        .map((c) => ({ id: c.id, label: 'A new commander' })),
+    };
+    vi.spyOn(store.repository, 'commit').mockRejectedValueOnce(
+      new DOMException('Storage is full', 'QuotaExceededError'),
+    );
+    expect(await store.savePlayer(command)).toBe(false);
+    expect(store.useApp.getState().game).toEqual(original);
+    expect((await store.repository.active()).game).toEqual(original);
+    expect(store.useApp.getState().error).toContain('Storage is full');
+    expect(await store.savePlayer(command)).toBe(true);
+    expect((await store.repository.active()).game!.players[playerId].name).toBe('Rowan');
+  });
+
+  it('does not report a room player save as successful without an acknowledgement sender', async () => {
+    const { room, send } = await connectedRoom();
+    const playerId = room.game!.order[0];
+    const command: Extract<Command, { type: 'editPlayer' }> = {
+      type: 'editPlayer',
+      playerId,
+      name: 'Rowan',
+      color: 'teal',
+      commanders: Object.values(room.game!.commanders)
+        .filter((c) => c.ownerId === playerId)
+        .map((c) => ({ id: c.id, label: c.label })),
+    };
+    expect(await store.savePlayer(command)).toBe(false);
+    expect(send).not.toHaveBeenCalled();
+    expect(store.useApp.getState().error).toMatch(/Reconnect/);
+  });
   it('restores a durable checkpoint and disconnects the room before local play continues', async () => {
     const checkpoint = createGame(defaultSetup(), newId, Date.now());
     checkpoint.players[checkpoint.order[0]].life = 27;

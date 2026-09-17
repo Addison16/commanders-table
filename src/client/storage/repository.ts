@@ -115,6 +115,9 @@ export class Repository {
     if (this.corrupt && !replace) throw new Error('Resolve saved-data recovery before saving a new game');
     const now = Date.now();
     const tx = this.memory ? undefined : this.db!.transaction('records', 'readwrite');
+    // A failed request can reject before we reach the final completion await.
+    // Observe that rejection now; awaiting the original promise still throws.
+    void tx?.done.catch(() => {});
     const records = tx?.store ?? {
       get: (key: string) => this.get(key),
       put: (value: unknown, key: string) => this.put(key, value),

@@ -30,6 +30,130 @@ function action(g: Game, c: Command, groupId?: string, now = 2000) {
   });
 }
 describe('game invariants', () => {
+  it('saves player details and both commanders as one reversible change without resetting play', () => {
+    let game = initial();
+    const playerId = game.order[0];
+    const commanders = Object.values(game.commanders).filter((entry) => entry.ownerId === playerId);
+    const card: CommanderCard = {
+      id: newId(),
+      name: 'Tymna the Weaver',
+      imageUrl: 'https://cards.scryfall.io/art_crop/front/1/2/12345678-1234-4234-8234-123456789abc.jpg',
+      scryfallUrl: 'https://scryfall.com/card/test/1/tymna-the-weaver',
+      artist: 'Example Artist',
+    };
+    game = action(game, { type: 'cast', commanderId: commanders[0].id });
+    game = action(game, {
+      type: 'damage',
+      playerId: game.order[1],
+      commanderId: commanders[1].id,
+      amount: 7,
+      subtractLife: true,
+    });
+    const previous = structuredClone(game);
+    const edited = action(game, {
+      type: 'editPlayer',
+      playerId,
+      name: 'Rowan',
+      color: 'teal',
+      commanders: [
+        { id: commanders[1].id, label: 'A custom partner', card: null },
+        { id: commanders[0].id, label: card.name, card },
+      ],
+    });
+    expect(game).toEqual(previous);
+    expect(edited.players).toEqual({
+      ...game.players,
+      [playerId]: { ...game.players[playerId], name: 'Rowan', color: 'teal' },
+    });
+    expect(edited.commanders[commanders[0].id]).toEqual({
+      ...game.commanders[commanders[0].id],
+      label: card.name,
+      card,
+    });
+    expect(edited.commanders[commanders[1].id]).toEqual({
+      ...game.commanders[commanders[1].id],
+      label: 'A custom partner',
+    });
+    expect(Object.keys(edited.commanders)).toEqual(Object.keys(game.commanders));
+    expect(edited.damageReceived).toEqual(game.damageReceived);
+    expect(edited.timer).toEqual(game.timer);
+    expect(edited.revision).toBe(game.revision + 1);
+    expect(edited.history).toHaveLength(game.history.length + 1);
+    expect(edited.undo).toHaveLength(game.undo.length + 1);
+    const saved = gameSchema.parse(JSON.parse(JSON.stringify(edited)));
+    expect(saved.players[playerId].color).toBe('teal');
+    expect(saved.commanders[commanders[0].id].card).toEqual(card);
+    const undone = action(saved, { type: 'undo' });
+    expect(undone.players).toEqual(game.players);
+    expect(undone.commanders).toEqual(game.commanders);
+    expect(undone.damageReceived).toEqual(game.damageReceived);
+    const redone = action(undone, { type: 'redo' });
+    expect(redone.players).toEqual(edited.players);
+    expect(redone.commanders).toEqual(edited.commanders);
+  });
+  it('rejects a partial or invalid player edit without changing names, colors or commanders', () => {
+    const game = initial();
+    const playerId = game.order[0];
+    const commanders = Object.values(game.commanders)
+      .filter((entry) => entry.ownerId === playerId)
+      .map(({ id, label }) => ({ id, label }));
+    const other = Object.values(game.commanders).find((entry) => entry.ownerId !== playerId)!;
+    const previous = structuredClone(game);
+    const command: Extract<Command, { type: 'editPlayer' }> = {
+      type: 'editPlayer',
+      playerId,
+      name: 'Changed',
+      color: 'rose',
+      commanders,
+    };
+    for (const invalid of [
+      [],
+      [commanders[0]],
+      [...commanders, { id: newId(), label: 'Added commander' }],
+      [commanders[0], commanders[0]],
+      [commanders[0], { id: newId(), label: 'Unknown commander' }],
+      [commanders[0], { id: other.id, label: 'Someone else’s commander' }],
+      [commanders[0], { ...commanders[1], label: '' }],
+    ]) {
+      expect(() => action(game, { ...command, commanders: invalid })).toThrow();
+      expect(game).toEqual(previous);
+    }
+    expect(() => action(game, { ...command, name: 'P'.repeat(41) })).toThrow();
+    expect(game).toEqual(previous);
+  });
+  it('clears omitted or null artwork in a submitted profile while keeping supplied partner artwork', () => {
+    let game = initial();
+    const playerId = game.order[0];
+    const commanders = Object.values(game.commanders).filter((entry) => entry.ownerId === playerId);
+    const card: CommanderCard = {
+      id: newId(),
+      name: 'Tymna the Weaver',
+      imageUrl: 'https://cards.scryfall.io/art_crop/front/1/2/12345678-1234-4234-8234-123456789abc.jpg',
+      scryfallUrl: 'https://scryfall.com/card/test/1/tymna-the-weaver',
+      artist: 'Example Artist',
+    };
+    for (const commander of commanders)
+      game = action(game, { type: 'commanderName', commanderId: commander.id, label: card.name, card });
+    const command: Extract<Command, { type: 'editPlayer' }> = {
+      type: 'editPlayer',
+      playerId,
+      name: 'Rowan',
+      color: 'teal',
+      commanders: [
+        { id: commanders[0].id, label: 'Custom commander' },
+        { id: commanders[1].id, label: card.name, card },
+      ],
+    };
+    const edited = action(game, command);
+    expect(edited.commanders[commanders[0].id]).not.toHaveProperty('card');
+    expect(edited.commanders[commanders[1].id].card).toEqual(card);
+    const cleared = action(edited, {
+      ...command,
+      commanders: command.commanders.map((entry) => ({ ...entry, card: null })),
+    });
+    expect(cleared.commanders[commanders[1].id]).not.toHaveProperty('card');
+    expect(action(cleared, { type: 'undo' }).commanders).toEqual(edited.commanders);
+  });
   it('keeps chosen commander artwork through saves, setup, rematches, undo and manual renames', () => {
     let game = initial();
     const commander = Object.values(game.commanders)[0];

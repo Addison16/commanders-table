@@ -73,6 +73,107 @@ function fixture(filename = ':memory:', count = 4) {
   };
 }
 describe('authoritative room transactions', () => {
+  it('commits a player profile once, lets its owner undo it, and limits edits to the assigned seat or host', () => {
+    const f = fixture();
+    const playerId = f.room.seats[0].id;
+    const commander = Object.values(f.room.game!.commanders).find((entry) => entry.ownerId === playerId)!;
+    const card: CommanderCard = {
+      id: randomUUID(),
+      name: 'Tymna the Weaver',
+      imageUrl: 'https://cards.scryfall.io/art_crop/front/1/2/12345678-1234-4234-8234-123456789abc.jpg',
+      scryfallUrl: 'https://scryfall.com/card/test/1/tymna-the-weaver',
+      artist: 'Example Artist',
+    };
+    const command: Extract<Command, { type: 'editPlayer' }> = {
+      type: 'editPlayer',
+      playerId,
+      name: 'Rowan',
+      color: 'teal',
+      commanders: [{ id: commander.id, label: card.name, card }],
+    };
+    expect(f.run(f.guest.hash, command).receipt.ok).toBe(false);
+    f.approve();
+    f.run(f.guest.hash, { type: 'cast', commanderId: commander.id });
+    f.run(f.guest.hash, {
+      type: 'damage',
+      playerId,
+      commanderId: commander.id,
+      amount: 5,
+      subtractLife: true,
+    });
+    const before = f.svc.view(f.room.id, f.host.hash);
+    const envelope = f.envelope(f.guest.hash, command);
+    const result = f.svc.execute(f.guest.hash, envelope);
+    expect(result.receipt.ok).toBe(true);
+    const edited = f.svc.view(f.room.id, f.host.hash);
+    expect(edited.revision).toBe(before.revision + 1);
+    expect(edited.game!.revision).toBe(before.game!.revision + 1);
+    expect(edited.game!.history).toHaveLength(before.game!.history.length + 1);
+    expect(edited.game!.undo).toHaveLength(before.game!.undo.length + 1);
+    expect(edited.game!.players[playerId]).toEqual({
+      ...before.game!.players[playerId],
+      name: 'Rowan',
+      color: 'teal',
+    });
+    expect(edited.game!.commanders[commander.id]).toEqual({
+      ...before.game!.commanders[commander.id],
+      label: card.name,
+      card,
+    });
+    expect(edited.game!.damageReceived).toEqual(before.game!.damageReceived);
+    expect(f.svc.execute(f.guest.hash, envelope).receipt).toEqual(result.receipt);
+    expect(f.svc.view(f.room.id, f.host.hash).game).toEqual(edited.game);
+    expect(f.run(f.guest.hash, { type: 'undo' }).receipt.ok).toBe(true);
+    const undone = f.svc.view(f.room.id, f.guest.hash).game!;
+    expect(undone.players).toEqual(before.game!.players);
+    expect(undone.commanders).toEqual(before.game!.commanders);
+    f.run(f.host.hash, { type: 'policy', everyoneEdits: true });
+    const otherPlayerId = f.room.seats[1].id;
+    const otherCommander = Object.values(undone.commanders).find((entry) => entry.ownerId === otherPlayerId)!;
+    const otherCommand: Extract<Command, { type: 'editPlayer' }> = {
+      ...command,
+      playerId: otherPlayerId,
+      commanders: [{ id: otherCommander.id, label: card.name, card }],
+    };
+    const beforeDenied = f.svc.view(f.room.id, f.host.hash).game!;
+    expect(f.run(f.guest.hash, otherCommand).receipt.ok).toBe(false);
+    expect(f.svc.view(f.room.id, f.host.hash).game).toEqual(beforeDenied);
+    expect(f.run(f.host.hash, otherCommand).receipt.ok).toBe(true);
+    expect(f.svc.view(f.room.id, f.other.hash).game!.commanders[otherCommander.id].card).toEqual(card);
+  });
+  it('rejects incomplete, duplicate and foreign commander IDs without partially saving a shared profile', () => {
+    const f = fixture();
+    const playerId = f.room.seats[0].id;
+    f.run(f.guest.hash, {
+      type: 'requestSeat',
+      playerId,
+      profile: { name: 'Alex', commanders: ['One', 'Two'] },
+    });
+    f.run(f.host.hash, { type: 'approve', memberId: f.g.me.id, playerId, replace: false });
+    const before = f.svc.view(f.room.id, f.host.hash);
+    const commanders = Object.values(before.game!.commanders)
+      .filter((entry) => entry.ownerId === playerId)
+      .map(({ id, label }) => ({ id, label }));
+    const other = Object.values(before.game!.commanders).find((entry) => entry.ownerId !== playerId)!;
+    const command: Extract<Command, { type: 'editPlayer' }> = {
+      type: 'editPlayer',
+      playerId,
+      name: 'Should not save',
+      color: 'rose',
+      commanders,
+    };
+    for (const invalid of [
+      [commanders[0]],
+      [commanders[0], commanders[0]],
+      [commanders[0], { id: randomUUID(), label: 'Unknown' }],
+      [commanders[0], { id: other.id, label: 'Another seat' }],
+    ]) {
+      expect(f.run(f.guest.hash, { ...command, commanders: invalid }).receipt.ok).toBe(false);
+      const after = f.svc.view(f.room.id, f.host.hash);
+      expect(after.revision).toBe(before.revision);
+      expect(after.game).toEqual(before.game);
+    }
+  });
   it('applies approved commander artwork to existing identities and protects each player’s artwork', () => {
     const f = fixture();
     const seat = f.room.seats[0].id;

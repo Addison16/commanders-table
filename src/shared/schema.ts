@@ -196,6 +196,22 @@ export const commandSchema = z.discriminatedUnion('type', [
     color: z.enum(palettes),
   }),
   z.strictObject({
+    type: z.literal('editPlayer'),
+    playerId: idSchema,
+    name: nameSchema,
+    color: z.enum(palettes),
+    commanders: z
+      .array(
+        z.strictObject({
+          id: idSchema,
+          label: commanderNameSchema,
+          card: commanderCardSchema.nullable().optional(),
+        }),
+      )
+      .min(1)
+      .max(2),
+  }),
+  z.strictObject({
     type: z.literal('commanderName'),
     commanderId: idSchema,
     label: commanderNameSchema,

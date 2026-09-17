@@ -3,7 +3,8 @@ import { dot, geometry, orient, rollSpin } from '../src/client/dice/geometry.js'
 import { roundedGeometry } from '../src/client/dice/rounded.js';
 import { diceSurfaceColor } from '../src/client/dice/ivory.js';
 import { visualDice } from '../src/client/dice/presentation.js';
-import { createGame, defaultSetup } from '../src/shared/game.js';
+import { preferredDicePlayer, rememberDicePlayer } from '../src/client/dice/preference.js';
+import { createGame, defaultSetup, makeRoll } from '../src/shared/game.js';
 import { newId } from '../src/shared/random.js';
 import { palettes, type Roll } from '../src/shared/schema.js';
 
@@ -109,6 +110,56 @@ describe('player dice colors', () => {
         diceSurfaceColor([...litFace], 'ivory', coin),
       );
     }
+  });
+});
+
+describe('default dice player', () => {
+  const game = () => createGame(defaultSetup(), newId, 1000);
+  it('uses the last saved local player’s updated color without a separate roll selection', () => {
+    const g = game();
+    const playerId = g.order[2];
+    g.players[playerId].color = 'rose';
+    rememberDicePlayer(g.id, playerId);
+    const selected = preferredDicePlayer(g, { mode: 'local' });
+    const roll = makeRoll(
+      g,
+      { type: 'roll', kind: 'dice', sides: 20, count: 1, playerId: selected },
+      { id: newId(), now: 2000, actor: 'This device' },
+      () => 12,
+    );
+    expect(selected).toBe(playerId);
+    expect(visualDice(roll, g, 0)).toEqual([{ value: 13, sides: 20, color: 'rose' }]);
+    // Remember identity, never a stale palette value.
+    g.players[playerId].color = 'teal';
+    expect(visualDice(roll, g, 0)[0].color).toBe('teal');
+  });
+  it('starts fresh local play with an active player and preserves an explicit table choice', () => {
+    const g = game();
+    g.players[g.order[0]].eliminated = true;
+    expect(preferredDicePlayer(g, { mode: 'local' })).toBe(g.order[1]);
+    rememberDicePlayer(g.id, '');
+    expect(preferredDicePlayer(g, { mode: 'local', localSeat: g.order[1] })).toBe('');
+    // Saving another player's appearance makes that player the next roller.
+    rememberDicePlayer(g.id, g.order[2]);
+    expect(preferredDicePlayer(g, { mode: 'local' })).toBe(g.order[2]);
+  });
+  it('defaults guests to their own seat while respecting deliberate table rolls', () => {
+    const g = game();
+    expect(preferredDicePlayer(g, { mode: 'room', ownedSeat: g.order[2], localSeat: g.order[0] })).toBe(
+      g.order[2],
+    );
+    rememberDicePlayer(g.id, '');
+    expect(preferredDicePlayer(g, { mode: 'room', ownedSeat: g.order[2] })).toBe('');
+  });
+  it('keeps game preferences separate and skips references to missing seats', () => {
+    const first = game();
+    const second = game();
+    rememberDicePlayer(first.id, first.order[3]);
+    expect(preferredDicePlayer(second, { mode: 'local' })).toBe(second.order[0]);
+    rememberDicePlayer(second.id, first.order[3]);
+    second.settings.turnTracking = true;
+    second.turn.playerId = second.order[1];
+    expect(preferredDicePlayer(second, { mode: 'local', localSeat: first.order[3] })).toBe(second.order[1]);
   });
 });
 

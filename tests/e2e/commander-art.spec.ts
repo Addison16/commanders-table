@@ -113,10 +113,14 @@ test('commander artwork saves and reloads without changing life, and can be remo
   await expect(page.getByTestId('life-0')).toHaveText('39');
   await openPlayerEditor(page);
   await chooseArtwork(page, 'Commander 1 name', cards[0]);
-  await page.getByRole('button', { name: 'Save commander 1', exact: true }).click();
+  await page.getByLabel('Player name', { exact: true }).fill('Rowan');
+  await page.getByRole('combobox', { name: 'Player color', exact: true }).selectOption('teal');
+  await expect(page.locator('.edit-player form')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await expect(page.getByText('Changes saved.', { exact: true })).toBeVisible();
   await expect(page.locator('.commander-credits')).toContainText(cards[0].artist);
   await audit(page);
-  await page.getByRole('button', { name: 'Close Player 1', exact: true }).click();
+  await page.getByRole('button', { name: 'Close Rowan', exact: true }).click();
   const image = page.locator('.player-tile').first().locator('.commander-backdrop img');
   await expect(image).toHaveAttribute('src', cards[0].imageUrl);
   await expect
@@ -134,17 +138,18 @@ test('commander artwork saves and reloads without changing life, and can be remo
   await expect
     .poll(() => image.evaluate((node) => (node as HTMLImageElement).naturalWidth))
     .toBeGreaterThan(0);
-  await openPlayerEditor(page);
+  await openPlayerEditor(page, 'Rowan');
+  await expect(page.getByRole('combobox', { name: 'Player color', exact: true })).toHaveValue('teal');
   await page.getByLabel('Commander 1 name', { exact: true }).fill('My custom commander');
-  await page.getByRole('button', { name: 'Save commander 1', exact: true }).click();
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
   await expect(page.locator('.commander-credits')).toHaveCount(0);
   await chooseArtwork(page, 'Commander 1 name', cards[0]);
-  await page.getByRole('button', { name: 'Save commander 1', exact: true }).click();
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
   await expect(page.locator('.commander-credits')).toContainText(cards[0].artist);
   await page.getByRole('button', { name: 'Remove artwork', exact: true }).click();
-  await page.getByRole('button', { name: 'Save commander 1', exact: true }).click();
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
   await expect(page.locator('.commander-credits')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Close Player 1', exact: true }).click();
+  await page.getByRole('button', { name: 'Close Rowan', exact: true }).click();
   await expect(image).toHaveCount(0);
   await expect(page.getByTestId('life-0')).toHaveText('39');
 });
@@ -245,7 +250,7 @@ test('joining players choose artwork before approval and share it with the host 
     await expect(
       commanderInput(guest, 'Commander 1 name').getByRole('button', { name: 'Find artwork', exact: true }),
     ).toBeDisabled();
-    await expect(guest.getByRole('button', { name: 'Save commander 1', exact: true })).toBeDisabled();
+    await expect(guest.getByRole('button', { name: 'Save changes', exact: true })).toBeDisabled();
   } finally {
     await guestContext.close();
   }
@@ -293,7 +298,7 @@ test('failed and stale artwork lookups keep manual commander names and playable 
     await input.getByLabel('Commander 1 name', { exact: true }).fill('Unavailable commander');
     await input.getByRole('button', { name: 'Find artwork', exact: true }).click();
     await expect(input.getByRole('status')).toContainText('play without artwork');
-    await page.getByRole('button', { name: 'Save commander 1', exact: true }).click();
+    await page.getByRole('button', { name: 'Save changes', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Unavailable commander', exact: true })).toBeVisible();
     await input.getByLabel('Commander 1 name', { exact: true }).fill('Slow commander');
     await input.getByRole('button', { name: 'Find artwork', exact: true }).click();
@@ -303,7 +308,7 @@ test('failed and stale artwork lookups keep manual commander names and playable 
     await responseFinished;
     await expect(input.getByLabel('Commander 1 name', { exact: true })).toHaveValue('My custom commander');
     await expect(input.locator('.commander-art-preview')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Save commander 1', exact: true }).click();
+    await page.getByRole('button', { name: 'Save changes', exact: true }).click();
     await page.getByRole('button', { name: 'Close Player 1', exact: true }).click();
     await page.getByRole('button', { name: "Decrease Player 1's life", exact: true }).click();
     await expect(page.getByTestId('life-0')).toHaveText('39');

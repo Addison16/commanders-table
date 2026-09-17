@@ -46,15 +46,15 @@ test('shared player forms follow remote updates and keep only the fields being e
     }
     await host.getByLabel('Player name', { exact: true }).fill('Aria');
     await guest.getByRole('combobox', { name: 'Player color', exact: true }).selectOption('teal');
-    await guest.getByRole('button', { name: 'Save player', exact: true }).click();
+    await guest.getByRole('button', { name: 'Save changes', exact: true }).click();
     await expect(host.getByRole('combobox', { name: 'Player color', exact: true })).toHaveValue('teal');
     await expect(host.getByLabel('Player name', { exact: true })).toHaveValue('Aria');
-    await host.getByRole('button', { name: 'Save player', exact: true }).click();
+    await host.getByRole('button', { name: 'Save changes', exact: true }).click();
     await expect(guest.getByLabel('Player name', { exact: true })).toHaveValue('Aria');
     await expect(guest.getByRole('combobox', { name: 'Player color', exact: true })).toHaveValue('teal');
 
     await guest.getByLabel('Commander 1 name', { exact: true }).fill('Atraxa');
-    await guest.getByRole('button', { name: 'Save commander 1', exact: true }).click();
+    await guest.getByRole('button', { name: 'Save changes', exact: true }).click();
     await expect(host.getByLabel('Commander 1 name', { exact: true })).toHaveValue('Atraxa');
     await guest.getByRole('button', { name: 'Decrease life', exact: true }).click();
     await expect(host.getByLabel('Exact life', { exact: true })).toHaveValue('39');

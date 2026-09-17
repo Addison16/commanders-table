@@ -211,6 +211,25 @@ export function reduceGame(previous: Game, input: Command, ctx: Context): Game {
       p!.color = c.color;
       summary = `${c.name} updated their seat`;
       break;
+    case 'editPlayer': {
+      const existing = Object.values(g.commanders).filter((entry) => entry.ownerId === c.playerId);
+      if (
+        existing.length !== c.commanders.length ||
+        new Set(c.commanders.map((entry) => entry.id)).size !== existing.length ||
+        c.commanders.some((entry) => g.commanders[entry.id]?.ownerId !== c.playerId)
+      )
+        throw new Error('Save all of this player’s current commanders. Reopen their details and try again.');
+      p!.name = c.name;
+      p!.color = c.color;
+      for (const entry of c.commanders) {
+        const target = g.commanders[entry.id];
+        target.label = entry.label;
+        if (entry.card) target.card = entry.card;
+        else delete target.card;
+      }
+      summary = `${c.name} updated their player and commanders`;
+      break;
+    }
     case 'commanderName':
       commander!.label = c.label;
       if (c.card) commander!.card = c.card;

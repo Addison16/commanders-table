@@ -1,5 +1,27 @@
 # Verification record
 
+Entries record results and deployment state at the time of each check; historical `latest` digests and local-only status are not statements about the current release.
+
+## September 17 v0.1.4 release candidate
+
+The user explicitly requested publication of the latest app. The v0.1.4 candidate includes optional Scryfall commander backgrounds from the canceled v0.1.3 publication, unified player saves, automatic player dice defaults, the browser storage-abort fix, and the package-page `latest` install command. The existing v0.1.3 tag is preserved. The candidate passes all 128 unit/integration checks, ESLint, TypeScript, the production build, release validation and actionlint. Prior browser verification is recorded below; the hosted release gate, public release/downloads, and anonymous amd64/arm64 image checks are pending.
+
+## September 16 GitHub package install command
+
+The user requested `docker pull ghcr.io/addison16/commanders-table:latest` in GitHub's generated package install box. README/release-note edits alone did not change that box, and re-pushing an identical index retained its original display tag. A metadata-only index tagged exclusively `latest` made the anonymous package landing page display the requested command. Its digest was `sha256:48d7bdfeeac34e2cb0a728ebcd211ba08ad1b388625e39d779e67375177b9977`; every platform/attestation descriptor matched the published v0.1.2 index exactly. At that check, the `0.1.2`, `stable` and original SHA tags retained `sha256:3f4ccaa61de2c672b7f196b282254b0e68c88f193ad35948ed8b4e0925aa24f5`.
+
+The manual metadata workflow [passed](https://github.com/Addison16/commanders-table/actions/runs/35174866901), and the package page plus anonymous registry reads verify the result. Future stable releases publish a separate annotated latest index after their version/SHA/stable tags; prereleases do not change latest. `actionlint` passes for both packaging workflows. Only packaging workflow commits were pushed for this correction; local player-save/dice fixes and the running local image were unchanged and unpublished at that time.
+
+## September 16 local player-save and dice-color fixes
+
+Player details now submit name, color and all commander labels/artwork through one atomic `editPlayer` command. Host/own-seat permissions, existing commander IDs, casts and damage remain intact, and one Undo restores the whole edit. The form waits for durable local storage or a matching successful room acknowledgement before clearing drafts. Rejected, interrupted and timed-out saves retain edits for retry. Local dice default to the last saved or selected player and use that player's current color; explicit neutral table rolls and shared-seat defaults remain available.
+
+All **128 unit/integration checks across 8 files**, ESLint, TypeScript and production build pass. The Chromium/WebKit suite passes **63 cases with 3 expected skips**, across the initial suites and focused reruns. New checks inspect real dice canvas colors after changing a third player's profile without touching **Roll for**, combined partner/artwork saves, single undo, shared live drafts, and durable-save failure/retry. The failure test exposed an unhandled IndexedDB transaction `AbortError`; handling its completion rejection immediately fixes the error while preserving rollback and failure reporting. The new storage regression and both browser failure journeys pass after the fix. Production offline/prompted-update checks and HTTPS/cookie/CSRF/WSS smoke checks pass.
+
+The local Node 24 image `commanders-table:local-player-save` (`sha256:bd22cb3d75eef4719ae6775511952ff3981798901e462a7b5d7af1ae56a26a3a`, version label `0.1.3-local.2`) passed the isolated container smoke and is deployed on the existing service and volume. The database backup `before-player-save-20260916.sqlite` was verified and copied out; `commanders-table:before-player-save-20260916` retains the previous app. Before/after database checksums match for all 38 rooms, 62 memberships, 195 events, zero snapshots and 65 session identities/revocation flags. Container and HTTPS health pass.
+
+A browser running the previous live app applied **Save & update** and retained its exact saved game. It then changed a third player's name, color and commander in one save, verified a single revision, reloaded, and rolled a matching blue d20 without changing **Roll for**. The live unified editor was visually inspected. No commits, tags, releases or Docker images were pushed or published for these fixes during that local update; they are included in the subsequent v0.1.4 release candidate.
+
 ## September 16 v0.1.3 commander artwork
 
 Scryfall integration adds 23 mocked API/schema checks for trusted links, double-faced cards, bounded response/queue/cache handling, request spacing, and rate-limit cooldown. Domain/room regressions verify aligned partner cards, legacy saves, rename/remove/undo/rematch behavior, pending-profile persistence and own-seat permissions. All **110 unit/integration checks across 8 files** pass, along with ESLint, TypeScript and the production build.
@@ -8,7 +30,11 @@ The new browser journeys use mocked card metadata and the project's original ico
 
 A separate real-service check selected and displayed four Scryfall commander cards, verified artist attribution, and visually inspected portrait and sideways shared-table layouts. With production CSP and service workers enabled, real Scryfall art loaded as a successful CORS response, entered the bounded image cache, and survived an actual app-origin outage and subsequent life edits/reloads in Chromium and WebKit. WebKit's offline network emulation produced an internal navigation error, so this check uses the same real-origin outage approach as the existing PWA smoke test. Production prompted updates, private-API cache exclusion and HTTPS/cookie/CSRF/WSS checks also pass.
 
-The complete Chromium/WebKit suite passes: **57 passed, with 3 expected skips** (60 cases total). Hosted release checks, publication and live deployment are pending. No physical-phone verification is implied.
+The complete Chromium/WebKit suite passes: **57 passed, with 3 expected skips** (60 cases total). Native amd64 and arm64 container checks also passed in the [release workflow](https://github.com/Addison16/commanders-table/actions/runs/35171924048). That workflow was canceled before publication; the v0.1.3 source tag already exists, but no v0.1.3 GitHub release or public Docker image was published. Anonymous registry inspection at that time confirmed that `latest` still pointed to the v0.1.2 digest and `0.1.3` returned not found. Publication was deferred until an explicit user request. No physical-phone verification is implied.
+
+The local Node 24 image `commanders-table:local-artwork` (`sha256:1169984204a7ddfa559f4bf2ba45a449dcaf4267942d34eaa9d24bd35b190eab`, version label `0.1.3-local`) passed the isolated container smoke, including SQLite, room commands, recreation, backup and restore. It was deployed on the existing service, HTTPS origin and database volume. The private deployment environment selects this local image; its previous configuration is backed up. A verified `before-local-artwork-20260916.sqlite` database backup was copied out before recreation, and `commanders-table:before-v013-20260916` retains the prior image. All 38 rooms, 62 memberships, 195 events, zero snapshots and 65 session identities/revocation flags matched exactly afterward.
+
+A browser holding the prior live service worker applied **Save & update** and preserved its exact 39-life game and blue player. It then resolved a real Scryfall commander, saved and displayed the artwork/credits, verified the production image cache, reloaded with the same card and life total, and rolled the matching blue die. HTTPS health and container health pass. These final verification notes were kept local until the subsequent request to publish v0.1.4.
 
 ## September 16 v0.1.2 bug review and player-colored dice
 

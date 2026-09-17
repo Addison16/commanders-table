@@ -70,7 +70,7 @@ test('joining players choose their name and partners, revise a pending request, 
     await expect(guest.getByLabel('Commander 1 name', { exact: true })).toHaveValue('Tymna the Weaver');
     await expect(guest.getByLabel('Commander 2 name', { exact: true })).toHaveValue('Kraum, Ludevic’s Opus');
     await guest.getByLabel('Commander 1 name', { exact: true }).fill('Tymna');
-    await guest.getByRole('button', { name: 'Save commander 1', exact: true }).click();
+    await guest.getByRole('button', { name: 'Save changes', exact: true }).click();
     await expect
       .poll(
         async () =>
@@ -85,8 +85,7 @@ test('joining players choose their name and partners, revise a pending request, 
     await expect(host.getByTestId('life-0')).toHaveText('38');
     await guest.getByRole('button', { name: 'Player 2 details', exact: true }).click();
     await guest.getByText('Edit player & commanders', { exact: true }).click();
-    await expect(guest.getByRole('button', { name: 'Save player', exact: true })).toBeDisabled();
-    await expect(guest.getByRole('button', { name: 'Save commander 1', exact: true })).toBeDisabled();
+    await expect(guest.getByRole('button', { name: 'Save changes', exact: true })).toBeDisabled();
   } finally {
     await context.close();
   }

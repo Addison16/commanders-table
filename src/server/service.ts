@@ -440,7 +440,7 @@ export class RoomService {
       numeric = ['adjust', 'set', 'damage', 'damageSet', 'cast', 'castSet'].includes(c.type);
     if (
       seat &&
-      (numeric || ['customize', 'commanderName', 'eliminate'].includes(c.type)) &&
+      (numeric || ['customize', 'editPlayer', 'commanderName', 'eliminate'].includes(c.type)) &&
       (seat === me.seat_id || (numeric && r.everyone_edits))
     )
       return;
