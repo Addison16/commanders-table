@@ -319,8 +319,9 @@ export function App() {
             <p className="home-foot">
               <Icon name="shield" size={15} /> Made for the table, remembered in your browser.
             </p>
-            <button className="text-button" onClick={() => open('settings')}>
-              Display & browser settings
+            <button className="home-settings-button" onClick={() => open('settings')}>
+              <Icon name="settings" size={20} />
+              <span>Display & browser settings</span>
             </button>
           </main>
         )}

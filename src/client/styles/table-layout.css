@@ -73,15 +73,14 @@
     gap: 4px;
   }
   .shared-table .life-controls .hold {
+    --life-control-surface: color-mix(in srgb, var(--player) 5%, transparent);
+    --life-control-ring: color-mix(in srgb, var(--player) 12%, transparent);
     height: 100%;
     min-height: 52px;
     align-self: stretch;
-    opacity: 1;
-    border: 1px solid color-mix(in srgb, var(--player) 12%, transparent);
-    background: color-mix(in srgb, var(--player) 5%, transparent);
   }
-  .shared-table .life-controls .hold:active {
-    background: color-mix(in srgb, var(--player) 22%, transparent);
+  .shared-table .life-controls .hold:not(:disabled) {
+    opacity: 1;
   }
   .shared-table .tile-foot:not(.has-status) {
     display: none;

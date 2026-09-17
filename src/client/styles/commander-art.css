@@ -29,8 +29,10 @@
       0 0 24px #000;
   }
   .with-commander-art .life-controls .hold {
+    --life-control-surface: #090d1480;
+  }
+  .with-commander-art .life-controls .hold:not(:disabled) {
     opacity: 1;
-    background: #090d1480;
   }
   .with-commander-art .life-caption {
     opacity: 1;

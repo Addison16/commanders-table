@@ -6,6 +6,7 @@ import { HoldButton } from '../components/HoldButton.js';
 import { facesAcross } from './TableLayout.js';
 import { CommanderInput } from '../components/CommanderInput.js';
 import { CommanderCredits } from '../components/CommanderArtwork.js';
+import { CommanderReader } from '../components/CommanderReader.js';
 import type { CommanderCard } from '../../shared/cards.js';
 import { rememberDicePlayer } from '../dice/preference.js';
 
@@ -117,6 +118,7 @@ export function PlayerDetails({ playerId, onClose }: { playerId: string; onClose
     (isHost() || room?.me.seatId === playerId);
   return (
     <Sheet title={player.name} description="Your life, your legends, your next move." onClose={onClose}>
+      <CommanderReader commanders={commanders} />
       <CommanderCredits
         cards={Object.values(game.commanders)
           .filter((c) => c.ownerId === playerId && c.card)

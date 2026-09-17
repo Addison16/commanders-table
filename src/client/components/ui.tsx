@@ -5,6 +5,12 @@ import { create } from 'zustand';
 const paths: Record<string, ReactNode> = {
   plus: <path d="M12 5v14M5 12h14" />,
   minus: <path d="M5 12h14" />,
+  card: (
+    <>
+      <rect x="5" y="2" width="14" height="20" rx="2" />
+      <path d="M8 6h8M8 10h8M8 14h5M8 18h8" />
+    </>
+  ),
   close: <path d="m6 6 12 12M18 6 6 18" />,
   dice: (
     <>

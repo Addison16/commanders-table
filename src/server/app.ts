@@ -30,7 +30,7 @@ export async function buildApp(
   await app.register(rateLimit, {
     max: 6000,
     timeWindow: '1 minute',
-    errorResponseBuilder: () => ({ error: 'Too many requests. Please wait a moment.' }),
+    errorResponseBuilder: () => new HttpError(429, 'Too many requests. Please wait a moment.'),
   });
   await app.register(websocket, { options: { maxPayload: 16_384, perMessageDeflate: false } });
   const sessionHash = (req: FastifyRequest) => {
@@ -91,6 +91,9 @@ export async function buildApp(
   );
   app.get('/api/cards/resolve', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req) =>
     cards.resolve(cardQuery.parse(req.query).q),
+  );
+  app.get('/api/cards/details', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req) =>
+    cards.details(cardQuery.parse(req.query).q),
   );
   app.post(
     '/api/session',

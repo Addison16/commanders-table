@@ -26,6 +26,15 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
+            urlPattern: /^https:\/\/cards\.scryfall\.io\/(?:normal|large)\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'commander-cards-v1',
+              cacheableResponse: { statuses: [200] },
+              expiration: { maxEntries: 32, maxAgeSeconds: 30 * 24 * 60 * 60, purgeOnQuotaError: true },
+            },
+          },
+          {
             urlPattern: /^https:\/\/cards\.scryfall\.io\/art_crop\//,
             handler: 'CacheFirst',
             options: {

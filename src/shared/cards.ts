@@ -5,6 +5,10 @@ const artPath = new RegExp(
   `^/art_crop/(?:front|back)/[0-9a-f]/[0-9a-f]/${uuidPath}\\.(?:jpg|png|webp)$`,
   'i',
 );
+const fullImagePath = new RegExp(
+  `^/(?:normal|large)/(?:front|back)/[0-9a-f]/[0-9a-f]/${uuidPath}\\.(?:jpg|png|webp)$`,
+  'i',
+);
 const cardPath = new RegExp(`^(?:/cards/${uuidPath}/?|/card/[a-z0-9]{2,8}/[^/]+(?:/[^/]+){0,2}/?)$`, 'i');
 
 function trustedUrl(value: string, host: string) {
@@ -46,3 +50,36 @@ export const commanderCardSchema = z.strictObject({
 });
 
 export type CommanderCard = z.infer<typeof commanderCardSchema>;
+
+/** Full card scans are display-only metadata, never stored as commander art crops. */
+export const cardImageUrlSchema = z
+  .string()
+  .max(1000)
+  .refine((value) => {
+    const url = trustedUrl(value, 'cards.scryfall.io');
+    return !!url && fullImagePath.test(url.pathname) && (!url.search || /^\?\d+$/.test(url.search));
+  }, 'Use an HTTPS Scryfall full-card image.');
+
+export const cardDetailsSchema = z.strictObject({
+  id: z.string().uuid(),
+  name: z.string().trim().min(1).max(200),
+  scryfallUrl: commanderCardSchema.shape.scryfallUrl,
+  faces: z
+    .array(
+      z.strictObject({
+        name: z.string().trim().min(1).max(200),
+        manaCost: z.string().max(200),
+        typeLine: z.string().trim().min(1).max(300),
+        oracleText: z.string().max(12000),
+        imageUrl: cardImageUrlSchema.optional(),
+        artist: z.string().trim().min(1).max(200).optional(),
+        power: z.string().max(40).optional(),
+        toughness: z.string().max(40).optional(),
+        loyalty: z.string().max(40).optional(),
+      }),
+    )
+    .min(1)
+    .max(8),
+});
+
+export type CardDetails = z.infer<typeof cardDetailsSchema>;

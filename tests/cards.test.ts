@@ -1,17 +1,23 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { commanderCardSchema } from '../src/shared/cards.js';
+import { cardDetailsSchema, cardImageUrlSchema, commanderCardSchema } from '../src/shared/cards.js';
 import { cardEndpoint, CardLookupService } from '../src/server/cards.js';
 import { buildApp } from '../src/server/app.js';
 import { readConfig } from '../src/server/config.js';
 
 const id = '12345678-1234-4234-8234-123456789abc';
 const imageUrl = `https://cards.scryfall.io/art_crop/front/1/2/${id}.jpg?1712345678`;
+const fullImageUrl = imageUrl.replace('/art_crop/', '/large/');
 const upstream = {
   id,
   name: 'Example Commander',
-  image_uris: { art_crop: imageUrl },
+  image_uris: { art_crop: imageUrl, large: fullImageUrl },
   scryfall_uri: 'https://scryfall.com/card/test/1/example-commander?utm_source=api',
   artist: 'Example Artist',
+  mana_cost: '{2}{G}{U}',
+  type_line: 'Legendary Creature — Elf Wizard',
+  oracle_text: 'Flying\nWhenever you draw a card, you gain 1 life.',
+  power: '2',
+  toughness: '4',
 };
 const card = {
   id,
@@ -19,6 +25,23 @@ const card = {
   imageUrl,
   scryfallUrl: 'https://scryfall.com/card/test/1/example-commander',
   artist: upstream.artist,
+};
+const details = {
+  id,
+  name: upstream.name,
+  scryfallUrl: card.scryfallUrl,
+  faces: [
+    {
+      name: upstream.name,
+      manaCost: upstream.mana_cost,
+      typeLine: upstream.type_line,
+      oracleText: upstream.oracle_text,
+      imageUrl: fullImageUrl,
+      artist: upstream.artist,
+      power: upstream.power,
+      toughness: upstream.toughness,
+    },
+  ],
 };
 
 function clock() {
@@ -36,6 +59,39 @@ function clock() {
 afterEach(() => vi.restoreAllMocks());
 
 describe('safe commander card metadata', () => {
+  it('validates bounded readable card details and keeps full scans separate from saved artwork', () => {
+    expect(cardDetailsSchema.parse(details)).toEqual(details);
+    expect(cardImageUrlSchema.parse(fullImageUrl.replace('/large/', '/normal/'))).toContain('/normal/');
+    for (const image of [
+      imageUrl,
+      fullImageUrl.replace('https:', 'http:'),
+      fullImageUrl.replace('cards.scryfall.io', 'cards.scryfall.io.evil.example'),
+      fullImageUrl.replace('cards.scryfall.io', 'user:password@cards.scryfall.io'),
+      fullImageUrl.replace('cards.scryfall.io', 'cards.scryfall.io:8443'),
+      fullImageUrl.replace('.jpg', '.svg'),
+      fullImageUrl + '#fragment',
+      fullImageUrl + '&redirect=https://evil.example',
+      'data:image/svg+xml,<svg/>',
+    ]) {
+      expect(cardImageUrlSchema.safeParse(image).success).toBe(false);
+      expect(
+        cardDetailsSchema.safeParse({ ...details, faces: [{ ...details.faces[0], imageUrl: image }] })
+          .success,
+      ).toBe(false);
+    }
+    expect(commanderCardSchema.safeParse({ ...card, imageUrl: fullImageUrl }).success).toBe(false);
+    expect(cardDetailsSchema.safeParse({ ...details, faces: [] }).success).toBe(false);
+    expect(cardDetailsSchema.safeParse({ ...details, faces: Array(9).fill(details.faces[0]) }).success).toBe(
+      false,
+    );
+    expect(
+      cardDetailsSchema.safeParse({
+        ...details,
+        faces: [{ ...details.faces[0], oracleText: 'x'.repeat(12001) }],
+      }).success,
+    ).toBe(false);
+  });
+
   it('accepts trusted artwork and rejects unsafe URLs in imported metadata', () => {
     expect(commanderCardSchema.parse(card)).toEqual(card);
     expect(commanderCardSchema.parse({ ...card, scryfallUrl: `https://scryfall.com/cards/${id}` }).id).toBe(
@@ -97,12 +153,152 @@ describe('safe commander card metadata', () => {
     'https://scryfall.com/card/test/1/arbitrary/path',
   ])('rejects an unrecognized lookup URL without fetching it: %s', async (url) => {
     const fetcher = vi.fn<typeof fetch>();
-    await expect(new CardLookupService({ fetcher }).resolve(url)).rejects.toMatchObject({ statusCode: 400 });
+    const service = new CardLookupService({ fetcher });
+    await expect(service.resolve(url)).rejects.toMatchObject({ statusCode: 400 });
+    await expect(service.details(url)).rejects.toMatchObject({ statusCode: 400 });
     expect(fetcher).not.toHaveBeenCalled();
   });
 });
 
 describe('bounded Scryfall lookup', () => {
+  it('returns full readable commander text and reuses upstream data across artwork and details requests', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json(upstream));
+    const service = new CardLookupService({ ...clock(), fetcher });
+    const [resolved, viewed] = await Promise.all([
+      service.resolve('Example Commander'),
+      service.details(' example commander '),
+    ]);
+    expect(resolved).toEqual({ card });
+    expect(viewed).toEqual({ details });
+    expect(await service.details('Example Commander')).toEqual({ details });
+    expect(await service.resolve('Example Commander')).toEqual({ card });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    const [viewedFirst, resolvedSecond] = await Promise.all([
+      service.details('Another commander'),
+      service.resolve('Another commander'),
+    ]);
+    expect(viewedFirst).toEqual({ details });
+    expect(resolvedSecond).toEqual({ card });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns both faces and their own scans, mana costs, rules and loyalty', async () => {
+    const frontImage = fullImageUrl.replace('/large/', '/normal/');
+    const backImage = fullImageUrl.replace('/front/', '/back/');
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      Response.json({
+        id,
+        name: 'Front Commander // Back Planeswalker',
+        scryfall_uri: upstream.scryfall_uri,
+        card_faces: [
+          {
+            name: 'Front Commander',
+            mana_cost: '{1}{U}',
+            type_line: 'Legendary Creature — Human Wizard',
+            oracle_text: '{T}: Draw a card, then discard a card.',
+            power: '0',
+            toughness: '2',
+            artist: 'Front Artist',
+            image_uris: { normal: frontImage },
+          },
+          {
+            name: 'Back Planeswalker',
+            mana_cost: '',
+            type_line: 'Legendary Planeswalker — Example',
+            oracle_text: '+1: Draw a card.',
+            loyalty: '5',
+            artist: 'Back Artist',
+            image_uris: { large: backImage },
+          },
+        ],
+      }),
+    );
+    expect((await new CardLookupService({ fetcher }).details('Front Commander')).details.faces).toEqual([
+      {
+        name: 'Front Commander',
+        manaCost: '{1}{U}',
+        typeLine: 'Legendary Creature — Human Wizard',
+        oracleText: '{T}: Draw a card, then discard a card.',
+        power: '0',
+        toughness: '2',
+        artist: 'Front Artist',
+        imageUrl: frontImage,
+      },
+      {
+        name: 'Back Planeswalker',
+        manaCost: '',
+        typeLine: 'Legendary Planeswalker — Example',
+        oracleText: '+1: Draw a card.',
+        loyalty: '5',
+        artist: 'Back Artist',
+        imageUrl: backImage,
+      },
+    ]);
+  });
+
+  it('uses shared scans for adventure cards while retaining separate readable face text', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      Response.json({
+        ...upstream,
+        name: 'Commander // Adventure',
+        card_faces: [
+          {
+            name: 'Commander',
+            mana_cost: '{2}{G}',
+            type_line: 'Legendary Creature — Beast',
+            oracle_text: 'Trample',
+            power: '4',
+            toughness: '4',
+          },
+          {
+            name: 'Adventure',
+            mana_cost: '{G}',
+            type_line: 'Sorcery — Adventure',
+            oracle_text: 'Draw a card.',
+          },
+        ],
+      }),
+    );
+    const result = (await new CardLookupService({ fetcher }).details('Commander')).details;
+    expect(result.faces.map((face) => face.imageUrl)).toEqual([fullImageUrl, fullImageUrl]);
+    expect(result.faces.map((face) => face.oracleText)).toEqual(['Trample', 'Draw a card.']);
+    expect(result.faces[1].power).toBeUndefined();
+  });
+
+  it('keeps readable text when full images are missing or unsafe without weakening art validation', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      Response.json({ ...upstream, image_uris: { large: 'http://127.0.0.1/private' } }),
+    );
+    const service = new CardLookupService({ ...clock(), fetcher });
+    const [viewed, resolved] = await Promise.allSettled([
+      service.details('Example Commander'),
+      service.resolve('Example Commander'),
+    ]);
+    expect(viewed).toEqual({
+      status: 'fulfilled',
+      value: {
+        details: {
+          ...details,
+          faces: [{ ...details.faces[0], imageUrl: undefined }],
+        },
+      },
+    });
+    expect(resolved).toEqual({ status: 'rejected', reason: expect.objectContaining({ statusCode: 503 }) });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects malformed detail text and does not cache that failure', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ ...upstream, oracle_text: 'x'.repeat(12001) }))
+      .mockResolvedValueOnce(Response.json(upstream));
+    const service = new CardLookupService({ ...clock(), fetcher });
+    await expect(service.details('Example Commander')).rejects.toMatchObject({ statusCode: 503 });
+    expect(await service.details('Example Commander')).toEqual({ details });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
   it('returns front-face artwork, name and artist for a double-faced card', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({
@@ -156,7 +352,7 @@ describe('bounded Scryfall lookup', () => {
     expect(fetcher).toHaveBeenCalledTimes(3);
   });
 
-  it('serializes both endpoints at least 550ms apart and bounds queued requests', async () => {
+  it('serializes all three endpoints at least 550ms apart and bounds queued requests', async () => {
     const time = clock(),
       starts: number[] = [];
     let release!: () => void;
@@ -172,7 +368,11 @@ describe('bounded Scryfall lookup', () => {
     });
     const service = new CardLookupService({ ...time, fetcher });
     const queued = Array.from({ length: 12 }, (_, i) =>
-      i % 2 ? service.suggest(`Name ${i}`) : service.resolve(`Name ${i}`),
+      i % 3 === 0
+        ? service.details(`Name ${i}`)
+        : i % 3 === 1
+          ? service.suggest(`Name ${i}`)
+          : service.resolve(`Name ${i}`),
     );
     await expect(service.resolve('One too many')).rejects.toMatchObject({ statusCode: 503 });
     expect(starts).toHaveLength(1);
@@ -201,7 +401,7 @@ describe('bounded Scryfall lookup', () => {
       .mockResolvedValueOnce(new Response('Rate limited', { status: 429, headers: { 'Retry-After': '45' } }))
       .mockImplementation(async () => Response.json(upstream));
     const service = new CardLookupService({ ...time, fetcher });
-    const results = await Promise.allSettled([service.resolve('First'), service.resolve('Second')]);
+    const results = await Promise.allSettled([service.resolve('First'), service.details('Second')]);
     expect(results).toEqual([
       { status: 'rejected', reason: expect.objectContaining({ statusCode: 429, retryAfter: 45 }) },
       { status: 'rejected', reason: expect.objectContaining({ statusCode: 429, retryAfter: 45 }) },
@@ -260,6 +460,11 @@ describe('public card API', () => {
       const resolved = await app.inject('/api/cards/resolve?q=Example%20Commander');
       expect(resolved.statusCode).toBe(200);
       expect(resolved.json()).toEqual({ card });
+      const viewed = await app.inject('/api/cards/details?q=Example%20Commander');
+      expect(viewed.statusCode).toBe(200);
+      expect(viewed.json()).toEqual({ details });
+      expect(viewed.cookies).toHaveLength(0);
+      expect(viewed.headers['cache-control']).toBe('no-store');
       expect(resolved.headers['content-security-policy']).toContain(
         "img-src 'self' data: blob: https://cards.scryfall.io;",
       );
@@ -268,24 +473,65 @@ describe('public card API', () => {
       );
       expect((await app.inject(`/api/cards/resolve?q=${'a'.repeat(513)}`)).statusCode).toBe(400);
       expect((await app.inject('/api/cards/resolve?q=http://127.0.0.1/private')).statusCode).toBe(400);
+      expect((await app.inject(`/api/cards/details?q=${'a'.repeat(513)}`)).statusCode).toBe(400);
+      expect((await app.inject('/api/cards/details?q=http://127.0.0.1/private')).statusCode).toBe(400);
       expect(fetcher).toHaveBeenCalledTimes(2);
     } finally {
       await app.close();
     }
   });
 
-  it('returns a clear cooldown and Retry-After header on upstream rate limiting', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response('Rate limited', { status: 429 }));
+  it.each(['resolve', 'details'])(
+    'returns a clear cooldown and Retry-After header for %s on upstream rate limiting',
+    async (endpoint) => {
+      const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response('Rate limited', { status: 429 }));
+      const { app } = await buildApp({
+        filename: ':memory:',
+        config: readConfig({ PUBLIC_ORIGIN: 'https://table.example' }),
+        cards: new CardLookupService({ fetcher }),
+      });
+      try {
+        const response = await app.inject(`/api/cards/${endpoint}?q=Example`);
+        expect(response.statusCode).toBe(429);
+        expect(Number(response.headers['retry-after'])).toBeGreaterThanOrEqual(30);
+        expect(response.json().error).toMatch(/keep the commander name/);
+      } finally {
+        await app.close();
+      }
+    },
+  );
+
+  it('returns a useful not-found error for an unknown commander without creating a session', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => new Response('not found', { status: 404 }));
     const { app } = await buildApp({
       filename: ':memory:',
       config: readConfig({ PUBLIC_ORIGIN: 'https://table.example' }),
       cards: new CardLookupService({ fetcher }),
     });
     try {
-      const response = await app.inject('/api/cards/resolve?q=Example');
-      expect(response.statusCode).toBe(429);
-      expect(Number(response.headers['retry-after'])).toBeGreaterThanOrEqual(30);
-      expect(response.json().error).toMatch(/keep the commander name/);
+      const response = await app.inject('/api/cards/details?q=Unknown');
+      expect(response.statusCode).toBe(404);
+      expect(response.json().error).toContain('No unique card matched');
+      expect(response.cookies).toHaveLength(0);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('limits card details requests even when all lookups hit the cache', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json(upstream));
+    const { app } = await buildApp({
+      filename: ':memory:',
+      config: readConfig({ PUBLIC_ORIGIN: 'https://table.example' }),
+      cards: new CardLookupService({ fetcher }),
+    });
+    try {
+      for (let i = 0; i < 30; i++)
+        expect((await app.inject('/api/cards/details?q=Example')).statusCode).toBe(200);
+      const limited = await app.inject('/api/cards/details?q=Example');
+      expect(limited.statusCode).toBe(429);
+      expect(limited.json().error).toContain('Too many requests');
+      expect(fetcher).toHaveBeenCalledTimes(1);
     } finally {
       await app.close();
     }

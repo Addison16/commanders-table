@@ -2,6 +2,18 @@
 
 Entries record results and deployment state at the time of each check; historical `latest` digests and local-only status are not statements about the current release.
 
+## September 17 local commander card reader
+
+Player profiles now offer **View commander** with full card images and readable rules, mana cost, type and stats. Partners and double-faced cards have separate selections. Approved guests can read another player's commander while existing edit permissions remain unchanged. The runtime game/save schema is unchanged; card details are display-only. Card-route rate limiting also now returns the intended **429** response instead of an accidental **500**.
+
+ESLint, TypeScript, the production build and **137 unit/integration checks** pass. All **20 targeted Chromium/WebKit browser cases** pass, covering the new reader plus commander artwork and unified player-save regressions. Reader checks verify saved-art versus name-only lookups, unchanged room/local game state, other-seat edit restrictions, partner/face selection, lookup retry, readable text after image failure, unnamed-commander hints, keyboard focus, a 320-pixel layout and automated accessibility.
+
+A separate real-Scryfall browser check verified Jace's front/back card images and text, including the back face's loyalty, at 320 pixels. Previously read text reopened during an outage from in-memory cache. This cache belongs only to the current tab, expires after up to one hour and clears on reload; the check does not establish offline card downloads or persistent full-image availability.
+
+Production PWA checks passed in Chromium and WebKit for prompted updates, offline reopening and exclusion of private API responses from caches. The locally built x64 image passed isolated container checks for startup, SQLite, room operations, recreation, backup and restore.
+
+The local service now runs image `e69c7180fc6b`, version `0.1.4-local.3`, with a verified backup and the previous image retained. The existing configuration and volume were preserved; only the image changed. Exact before/after hashes matched for all 38 rooms, 62 memberships, 195 events, zero snapshots and 65 sessions. Health checks passed. A browser holding the previous service worker applied **Save & update** over HTTPS and retained its exact game, including 39 life and Jace artwork. **View commander** then loaded real front/back scans, rules and the back face's loyalty of 5 without changing that game. These changes remain local and have not been published.
+
 ## September 17 v0.1.4 publication
 
 The user explicitly requested publication of the latest app. The v0.1.4 source includes optional Scryfall commander backgrounds from the canceled v0.1.3 publication, unified player saves, automatic player dice defaults, the browser storage-abort fix, and the package-page `latest` install command. The existing v0.1.3 tag is preserved. Local checks passed all 128 unit/integration checks, ESLint, TypeScript, the production build, release validation and actionlint.

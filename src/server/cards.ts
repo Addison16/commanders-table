@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { commanderCardSchema, type CommanderCard } from '../shared/cards.js';
+import {
+  cardDetailsSchema,
+  cardImageUrlSchema,
+  commanderCardSchema,
+  type CardDetails,
+  type CommanderCard,
+} from '../shared/cards.js';
 
 const API = 'https://api.scryfall.com';
 const CACHE_MS = 24 * 60 * 60 * 1000;
@@ -42,7 +48,7 @@ export class CardLookupError extends Error {
 const unavailable = () =>
   new CardLookupError(
     503,
-    'Card artwork is unavailable right now. Try again shortly, or keep playing with the commander name.',
+    'Card lookup is unavailable right now. Try again shortly, or keep playing with the commander name.',
   );
 const invalidLink = () =>
   new CardLookupError(400, 'Use a card name or an HTTPS card link from scryfall.com.');
@@ -126,6 +132,67 @@ function cardFromResponse(value: unknown): CommanderCard {
   return result.data;
 }
 
+const detailsImageUris = z.object({
+  normal: z.string().optional(),
+  large: z.string().optional(),
+});
+const detailsFace = z.object({
+  name: z.string(),
+  mana_cost: z.string().optional(),
+  type_line: z.string().optional(),
+  oracle_text: z.string().optional(),
+  image_uris: detailsImageUris.optional(),
+  artist: z.string().optional(),
+  power: z.string().optional(),
+  toughness: z.string().optional(),
+  loyalty: z.string().optional(),
+});
+const detailsResponse = detailsFace.extend({
+  id: uuid,
+  scryfall_uri: z.string(),
+  card_faces: z.array(detailsFace).min(1).max(8).optional(),
+});
+
+function detailsFromResponse(value: unknown): CardDetails {
+  const parsed = detailsResponse.safeParse(value);
+  if (!parsed.success) throw unavailable();
+  const card = parsed.data;
+  let scryfallUrl = `https://scryfall.com/cards/${card.id}`;
+  try {
+    const link = new URL(card.scryfall_uri);
+    link.search = '';
+    link.hash = '';
+    if (commanderCardSchema.shape.scryfallUrl.safeParse(link.href).success) scryfallUrl = link.href;
+  } catch {
+    /* The validated fallback still identifies this printing. */
+  }
+  const result = cardDetailsSchema.safeParse({
+    id: card.id,
+    name: card.name,
+    scryfallUrl,
+    faces: (card.card_faces ?? [card]).map((face) => {
+      // Split/adventure cards share a full scan; double-sided cards have one per face.
+      const images = face.image_uris ?? card.image_uris;
+      const imageUrl = [images?.large, images?.normal].find(
+        (image) => cardImageUrlSchema.safeParse(image).success,
+      );
+      return {
+        name: face.name,
+        manaCost: face.mana_cost ?? '',
+        typeLine: face.type_line ?? card.type_line,
+        oracleText: face.oracle_text ?? '',
+        imageUrl,
+        artist: face.artist ?? card.artist,
+        power: face.power,
+        toughness: face.toughness,
+        loyalty: face.loyalty,
+      };
+    }),
+  });
+  if (!result.success) throw unavailable();
+  return result.data;
+}
+
 async function readJson(response: Response): Promise<unknown> {
   const reader = response.body?.getReader();
   if (!reader || Number(response.headers.get('content-length')) > MAX_BYTES) {
@@ -200,6 +267,14 @@ export class CardLookupService {
     }
   }
 
+  details(query: string): Promise<{ details: CardDetails }> {
+    try {
+      return this.lookup(cardEndpoint(query), (value) => ({ details: detailsFromResponse(value) }));
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
   private backoff() {
     return new CardLookupError(
       429,
@@ -209,15 +284,24 @@ export class CardLookupService {
   }
 
   private lookup<T>(endpoint: string, parse: (value: unknown) => T): Promise<T> {
+    // Artwork and details share upstream data, but always validate their own response shape.
+    const parseResponse = (value: unknown) => {
+      try {
+        return parse(value);
+      } catch (error) {
+        if (this.cache.get(endpoint)?.value === value) this.cache.delete(endpoint);
+        throw error;
+      }
+    };
     const cached = this.cache.get(endpoint);
     if (cached && cached.expiresAt > this.now()) {
       this.cache.delete(endpoint);
       this.cache.set(endpoint, cached);
-      return Promise.resolve(cached.value as T);
+      return Promise.resolve(cached.value).then(parseResponse);
     }
     this.cache.delete(endpoint);
     const existing = this.pending.get(endpoint);
-    if (existing) return existing as Promise<T>;
+    if (existing) return existing.then(parseResponse);
     if (this.blockedUntil > this.now()) return Promise.reject(this.backoff());
     if (this.pending.size >= MAX_PENDING)
       return Promise.reject(new CardLookupError(503, 'Card lookup is busy. Wait a moment and try again.'));
@@ -257,7 +341,7 @@ export class CardLookupService {
             );
           throw unavailable();
         }
-        const result = parse(await readJson(response));
+        const result = await readJson(response);
         this.cache.set(endpoint, { value: result, expiresAt: this.now() + CACHE_MS });
         while (this.cache.size > MAX_CACHE) this.cache.delete(this.cache.keys().next().value!);
         return result;
@@ -272,9 +356,9 @@ export class CardLookupService {
       () => {},
       () => {},
     );
-    return pending;
+    return pending.then(parseResponse);
   }
 }
 
-// All rooms and both endpoints share one upstream queue and bounded cache.
+// All rooms and all card endpoints share one upstream queue and bounded cache.
 export const cardLookup = new CardLookupService();

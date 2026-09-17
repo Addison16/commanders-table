@@ -411,6 +411,25 @@
     font-size: 10px;
     margin-top: 24px;
   }
+  .home-settings-button {
+    width: min(100%, 320px);
+    min-height: 48px;
+    margin-top: 14px;
+    padding: 12px 18px;
+    border-color: #b39861;
+    background: #202a3a;
+    color: #f3f0e8;
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 3px 12px #00000030;
+  }
+  .home-settings-button > svg {
+    color: var(--gold);
+  }
+  .home-settings-button:hover {
+    background: #29364b;
+    border-color: var(--gold);
+  }
   .resume-button {
     width: 100%;
     margin: 0 0 18px;
@@ -576,6 +595,8 @@
     gap: 0;
   }
   .life-controls .hold {
+    --life-control-surface: transparent;
+    --life-control-ring: transparent;
     padding: 0;
     border: 0;
     min-width: 44px;
@@ -583,13 +604,44 @@
     border-radius: 8px;
     background: transparent;
     color: var(--player);
+    transform: none;
+    transition: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .life-controls .hold:not(:disabled) {
     opacity: 0.8;
   }
-  .life-controls .hold:hover {
-    background: #ffffff08;
+  .life-controls .hold > svg {
+    box-sizing: content-box;
+    width: 26px;
+    height: 26px;
+    padding: 8px;
+    border-radius: 50%;
+    background: var(--life-control-surface);
+    box-shadow: inset 0 0 0 1px var(--life-control-ring);
+    transition:
+      background-color 0.12s,
+      box-shadow 0.12s,
+      transform 0.12s;
   }
-  .life-controls .hold:active {
-    background: color-mix(in srgb, var(--player) 15%, transparent);
+  @media (hover: hover) and (pointer: fine) {
+    .life-controls .hold:hover:not(:disabled) > svg {
+      background: color-mix(in srgb, var(--player) 12%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--player) 18%, transparent);
+    }
+  }
+  .life-controls .hold:active:not(:disabled) > svg {
+    background: color-mix(in srgb, var(--player) 22%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--player) 28%, transparent);
+    transform: scale(0.96);
+    transition-duration: 0s;
+  }
+  .life-controls .hold:focus-visible {
+    outline: none;
+  }
+  .life-controls .hold:focus-visible > svg {
+    outline: 2px solid var(--player);
+    outline-offset: 2px;
   }
   .hold {
     touch-action: none;
@@ -1816,8 +1868,9 @@
       font-size: 40px;
       letter-spacing: -2px;
     }
-    .life-controls svg {
+    .life-controls .hold > svg {
       width: 21px;
+      height: 21px;
     }
     .tile-content {
       padding: 3px 2px 6px;
