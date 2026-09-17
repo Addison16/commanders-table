@@ -10,24 +10,52 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Refresh latest without rebuilding or changing its image
         env:
           IMAGE_OWNER: ${{ github.repository_owner }}
-        shell: bash
+          IMAGE_ACTOR: ${{ github.actor }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: python
         run: |
-          set -euo pipefail
-          image="ghcr.io/${IMAGE_OWNER,,}/commanders-table"
-          digest="$(docker buildx imagetools inspect "$image:latest" --format '{{.Manifest.Digest}}')"
-          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
-          docker buildx imagetools create --tag "$image:latest" "$image@$digest"
-          after="$(docker buildx imagetools inspect "$image:latest" --format '{{.Manifest.Digest}}')"
-          test "$after" = "$digest"
-          printf 'Refreshed `%s:latest` with its unchanged digest `%s`.\n' "$image" "$digest" >> "$GITHUB_STEP_SUMMARY"
+          import base64
+          import hashlib
+          import json
+          import os
+          import urllib.parse
+          import urllib.request
+
+          repository = os.environ['IMAGE_OWNER'].lower() + '/commanders-table'
+          image = 'ghcr.io/' + repository
+          credentials = base64.b64encode(
+              (os.environ['IMAGE_ACTOR'] + ':' + os.environ['GH_TOKEN']).encode()
+          ).decode()
+          query = urllib.parse.urlencode({
+              'service': 'ghcr.io', 'scope': 'repository:' + repository + ':pull,push'
+          })
+          request = urllib.request.Request('https://ghcr.io/token?' + query,
+              headers={'Authorization': 'Basic ' + credentials})
+          with urllib.request.urlopen(request, timeout=30) as response:
+              token = json.load(response)['token']
+          headers = {
+              'Authorization': 'Bearer ' + token,
+              'Accept': 'application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json'
+          }
+          url = 'https://ghcr.io/v2/' + repository + '/manifests/latest'
+          with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30) as response:
+              manifest = response.read()
+              content_type = response.headers['Content-Type']
+              digest = response.headers['Docker-Content-Digest']
+          assert 'sha256:' + hashlib.sha256(manifest).hexdigest() == digest
+          assert json.loads(manifest).get('manifests'), 'Expected the existing multiarchitecture image index'
+          # A direct PUT is intentional: Docker skips already-identical tags.
+          put_headers = {**headers, 'Content-Type': content_type}
+          with urllib.request.urlopen(urllib.request.Request(url, data=manifest, headers=put_headers, method='PUT'), timeout=30) as response:
+              assert response.status == 201
+              assert response.headers['Docker-Content-Digest'] == digest
+          with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30) as response:
+              assert response.read() == manifest
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('Refreshed `' + image + ':latest` with its unchanged digest `' + digest + '`.\n')
+          print('Refreshed latest; the multiarchitecture image and digest are unchanged.')
