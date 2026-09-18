@@ -31,7 +31,9 @@ jobs:
         id: image
         env:
           IMAGE_OWNER: ${{ github.repository_owner }}
-        run: echo "name=ghcr.io/${IMAGE_OWNER,,}/commanders-table" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "name=ghcr.io/${IMAGE_OWNER,,}/commandtable" >> "$GITHUB_OUTPUT"
+          echo "compatibility=ghcr.io/${IMAGE_OWNER,,}/commanders-table" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -42,7 +44,9 @@ jobs:
       - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         id: meta
         with:
-          images: ${{ steps.image.outputs.name }}
+          images: |
+            ${{ steps.image.outputs.name }}
+            ${{ steps.image.outputs.compatibility }}
           flavor: latest=false
           labels: |
             org.opencontainers.image.title=Command Table
@@ -66,6 +70,7 @@ jobs:
         if: ${{ !contains(github.ref_name, '-') }}
         env:
           IMAGE_NAME: ${{ steps.image.outputs.name }}
+          COMPATIBILITY_IMAGE_NAME: ${{ steps.image.outputs.compatibility }}
           IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
         shell: bash
         run: |
@@ -75,6 +80,7 @@ jobs:
           docker buildx imagetools create \
             --annotation 'index:org.opencontainers.image.ref.name=latest' \
             --tag "$IMAGE_NAME:latest" \
+            --tag "$COMPATIBILITY_IMAGE_NAME:latest" \
             "$IMAGE_NAME@$IMAGE_DIGEST"
       - name: Publish downloads and release notes
         env:

@@ -26,43 +26,52 @@ jobs:
           import urllib.parse
           import urllib.request
 
-          repository = os.environ['IMAGE_OWNER'].lower() + '/commanders-table'
-          image = 'ghcr.io/' + repository
+          owner = os.environ['IMAGE_OWNER'].lower()
+          repositories = [owner + '/commandtable', owner + '/commanders-table']
           credentials = base64.b64encode(
               (os.environ['IMAGE_ACTOR'] + ':' + os.environ['GH_TOKEN']).encode()
           ).decode()
-          query = urllib.parse.urlencode({
-              'service': 'ghcr.io', 'scope': 'repository:' + repository + ':pull,push'
-          })
-          request = urllib.request.Request('https://ghcr.io/token?' + query,
-              headers={'Authorization': 'Basic ' + credentials})
-          with urllib.request.urlopen(request, timeout=30) as response:
-              token = json.load(response)['token']
-          headers = {
-              'Authorization': 'Bearer ' + token,
-              'Accept': 'application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json'
-          }
-          url = 'https://ghcr.io/v2/' + repository + '/manifests/latest'
-          with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30) as response:
-              manifest = response.read()
-              content_type = response.headers['Content-Type']
-              digest = response.headers['Docker-Content-Digest']
-          assert 'sha256:' + hashlib.sha256(manifest).hexdigest() == digest
-          index = json.loads(manifest)
-          assert index.get('manifests'), 'Expected the existing multiarchitecture image index'
+          packages = []
+          for repository in repositories:
+              query = urllib.parse.urlencode({
+                  'service': 'ghcr.io', 'scope': 'repository:' + repository + ':pull,push'
+              })
+              request = urllib.request.Request('https://ghcr.io/token?' + query,
+                  headers={'Authorization': 'Basic ' + credentials})
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  token = json.load(response)['token']
+              headers = {
+                  'Authorization': 'Bearer ' + token,
+                  'Accept': 'application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json'
+              }
+              url = 'https://ghcr.io/v2/' + repository + '/manifests/latest'
+              with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30) as response:
+                  manifest = response.read()
+                  content_type = response.headers['Content-Type']
+                  digest = response.headers['Docker-Content-Digest']
+              assert 'sha256:' + hashlib.sha256(manifest).hexdigest() == digest
+              index = json.loads(manifest)
+              assert index.get('manifests'), 'Expected the existing multiarchitecture image index'
+              packages.append((repository, url, headers, content_type, digest, index))
+          # Validate both packages before writing. A display repair must never
+          # repoint either name to a different set of platform images.
+          index = packages[0][5]
+          assert all(package[5]['manifests'] == index['manifests'] for package in packages), \
+              'Primary and compatibility images differ; publish or migrate them together first'
           # GitHub keeps the initial display tag for a given index digest. Give
-          # latest its own index metadata while retaining every image descriptor.
+          # both names one identical latest index, retaining every descriptor.
           index.setdefault('annotations', {})['org.opencontainers.image.ref.name'] = 'latest'
           display_manifest = json.dumps(index, separators=(',', ':')).encode()
           display_digest = 'sha256:' + hashlib.sha256(display_manifest).hexdigest()
-          put_headers = {**headers, 'Content-Type': content_type}
-          with urllib.request.urlopen(urllib.request.Request(url, data=display_manifest, headers=put_headers, method='PUT'), timeout=30) as response:
-              assert response.status == 201
-              assert response.headers['Docker-Content-Digest'] == display_digest
-          with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30) as response:
-              after = response.read()
-              assert after == display_manifest
-              assert json.loads(after)['manifests'] == json.loads(manifest)['manifests']
-          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
-              summary.write('Updated `' + image + ':latest` package metadata from `' + digest + '` to `' + display_digest + '`. All platform images and their layers are unchanged.\n')
-          print('Latest has its own display entry; all platform images and layers are unchanged.')
+          for repository, url, headers, content_type, digest, original_index in packages:
+              put_headers = {**headers, 'Content-Type': packages[0][3]}
+              with urllib.request.urlopen(urllib.request.Request(url, data=display_manifest, headers=put_headers, method='PUT'), timeout=30) as response:
+                  assert response.status == 201
+                  assert response.headers['Docker-Content-Digest'] == display_digest
+              with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30) as response:
+                  after = response.read()
+                  assert after == display_manifest
+                  assert json.loads(after)['manifests'] == original_index['manifests']
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+                  summary.write('Updated `ghcr.io/' + repository + ':latest` package metadata from `' + digest + '` to `' + display_digest + '`. All platform images and their layers are unchanged.\n')
+          print('Both package names share the latest display entry; all platform images and layers are unchanged.')

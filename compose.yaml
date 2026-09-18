@@ -1,7 +1,7 @@
 services:
   mtg-util:
     # latest follows stable releases; set MTG_IMAGE to pin a version or digest.
-    image: ${MTG_IMAGE:-ghcr.io/addison16/commanders-table:latest}
+    image: ${MTG_IMAGE:-ghcr.io/addison16/commandtable:latest}
     ports:
       - '8080:8080'
     environment:

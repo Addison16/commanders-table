@@ -20,12 +20,12 @@ Use the published image for regular hosting, including on your own hardware. The
 
 1. Install [Docker with Compose](https://docs.docker.com/compose/install/) on the computer that will host the app. See [hardware and operating systems](docs/deployment.md#hardware-and-operating-systems) for the Docker setup to use on your machine.
 2. Download [compose.yaml](https://github.com/Addison16/commanders-table/releases/latest/download/compose.yaml) and [docker.env.example](https://github.com/Addison16/commanders-table/releases/latest/download/docker.env.example) into the same folder. Copy `docker.env.example` to `.env`. A source checkout uses `.env.docker.example` instead.
-3. Edit `.env`: keep `MTG_IMAGE=ghcr.io/addison16/commanders-table:latest` and set `PUBLIC_ORIGIN` to the exact URL every player will open. For a home network, use your server's address, for example:
+3. Edit `.env`: keep `MTG_IMAGE=ghcr.io/addison16/commandtable:latest` and set `PUBLIC_ORIGIN` to the exact URL every player will open. For a home network, use your server's address, for example:
 
    ```dotenv
    PUBLIC_ORIGIN=http://192.168.1.50:8080
    ALLOW_INSECURE_HTTP=true
-   MTG_IMAGE=ghcr.io/addison16/commanders-table:latest
+   MTG_IMAGE=ghcr.io/addison16/commandtable:latest
    ```
 
 4. In that folder, start the app:
@@ -41,18 +41,24 @@ Use the published image for regular hosting, including on your own hardware. The
 For reference, the image pull command is:
 
 ```sh
-docker pull ghcr.io/addison16/commanders-table:latest
+docker pull ghcr.io/addison16/commandtable:latest
 ```
 
 Compose handles the download, configuration and persistent storage together. The image supports `amd64` and `arm64` hosts. A single container serves the frontend and shared-room server on port 8080; server data stays in the named volume `mtg-util_mtg-util-data`.
 
-Command Table was previously named Commander's Table. The GitHub repository and Docker image still use `commanders-table`, so existing image references, saves and room memberships continue to work.
+The primary Docker image name is **`commandtable`**. The source repository remains `Addison16/commanders-table`. The existing `ghcr.io/addison16/commanders-table` image will be kept as a compatibility alias, and future releases will be published to both names.
 
 For public access or installable/offline phone support, configure HTTPS and `ALLOW_INSECURE_HTTP=false` using the [Docker deployment guide](docs/deployment.md#https-through-a-proxy). Keep the chosen address stable so browser saves and guest sessions stay associated with it.
 
 ### Update
 
-Keep the app running in Docker. [Create a verified backup](docs/deployment.md#back-up), then run these commands from the same folder:
+Keep the app running in Docker and [create a verified backup](docs/deployment.md#back-up). If your existing `.env` still uses the old `commanders-table` image, change its image setting once:
+
+```dotenv
+MTG_IMAGE=ghcr.io/addison16/commandtable:latest
+```
+
+Keep all other settings, the Compose project/service names, data volume and public origin. The image-name change uses the same v0.2.0 application and does not reset games or room memberships. From the same configuration folder, run:
 
 ```sh
 docker compose -p mtg-util -f compose.yaml pull
@@ -62,7 +68,7 @@ docker compose -p mtg-util -f compose.yaml ps
 
 The `latest` tag follows stable releases. Pull downloads the new image; `up -d` recreates the container with it while preserving the mounted data volume. Keep the same Compose project name, `.env`, volume and public origin. Do not use `down -v` when updating: it deletes the server data. Browser-local games remain in their browsers.
 
-Updates are applied when you run these commands or update through your Docker manager; selecting `latest` does not restart containers automatically. Players can tap **Save & update** when the browser update prompt appears. To stay on a fixed release, set `MTG_IMAGE` to a published version such as `ghcr.io/addison16/commanders-table:0.2.0`, or to an image digest. See [backup, restore and updates](docs/deployment.md) for details.
+Updates are applied when you run these commands or update through your Docker manager; selecting `latest` does not restart containers automatically. Players can tap **Save & update** when the browser update prompt appears. To stay on a fixed release, set `MTG_IMAGE` to a published version such as `ghcr.io/addison16/commandtable:0.2.0`, or to an image digest. See [backup, restore and updates](docs/deployment.md) for details.
 
 ## Play
 

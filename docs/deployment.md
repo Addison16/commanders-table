@@ -1,6 +1,6 @@
 # Docker hosting and maintenance
 
-Run Command Table on your own hardware with Docker Compose and the published `ghcr.io/addison16/commanders-table:latest` image. The image contains the app, API, WebSockets and SQLite support; hosting does not require Node, npm or a source checkout on the computer.
+Run Command Table on your own hardware with Docker Compose and the `ghcr.io/addison16/commandtable:latest` image. The image contains the app, API, WebSockets and SQLite support; hosting does not require Node, npm or a source checkout on the computer.
 
 ## Hardware and operating systems
 
@@ -29,7 +29,7 @@ cp docker.env.example .env
 Edit `.env` before starting. For phones on your LAN, use the host's actual LAN address in place of this example:
 
 ```dotenv
-MTG_IMAGE=ghcr.io/addison16/commanders-table:latest
+MTG_IMAGE=ghcr.io/addison16/commandtable:latest
 PUBLIC_ORIGIN=http://192.168.1.50:8080
 ALLOW_INSECURE_HTTP=true
 TRUST_PROXY_HOPS=0
@@ -59,16 +59,16 @@ Never use `docker compose down -v` to update: it deletes the volume containing s
 
 ## Configuration
 
-| Variable              | Default                                     | Meaning                                                                            |
-| --------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `PUBLIC_ORIGIN`       | `http://localhost:8080`                     | Exact browser origin, including a nonstandard port; no path, credentials, or query |
-| `ALLOW_INSECURE_HTTP` | `true` in the Compose example               | Use `true` for deliberate local/LAN HTTP; use `false` for HTTPS                    |
-| `PORT`                | `8080` inside the container                 | Retain 8080 inside the image for its health check                                  |
-| `DATA_DIR`            | `/data` inside the container                | SQLite database and sidecars in the persistent volume                              |
-| `ROOM_TTL_DAYS`       | `30`                                        | Days since last committed room activity                                            |
-| `SESSION_TTL_DAYS`    | `90`                                        | Rolling guest-cookie/session lifetime                                              |
-| `TRUST_PROXY_HOPS`    | `0`                                         | Number of trusted reverse-proxy hops, 0–5                                          |
-| `MTG_IMAGE`           | `ghcr.io/addison16/commanders-table:latest` | Published image; use a version or digest to pin a release                          |
+| Variable              | Default                                 | Meaning                                                                            |
+| --------------------- | --------------------------------------- | ---------------------------------------------------------------------------------- |
+| `PUBLIC_ORIGIN`       | `http://localhost:8080`                 | Exact browser origin, including a nonstandard port; no path, credentials, or query |
+| `ALLOW_INSECURE_HTTP` | `true` in the Compose example           | Use `true` for deliberate local/LAN HTTP; use `false` for HTTPS                    |
+| `PORT`                | `8080` inside the container             | Retain 8080 inside the image for its health check                                  |
+| `DATA_DIR`            | `/data` inside the container            | SQLite database and sidecars in the persistent volume                              |
+| `ROOM_TTL_DAYS`       | `30`                                    | Days since last committed room activity                                            |
+| `SESSION_TTL_DAYS`    | `90`                                    | Rolling guest-cookie/session lifetime                                              |
+| `TRUST_PROXY_HOPS`    | `0`                                     | Number of trusted reverse-proxy hops, 0–5                                          |
+| `MTG_IMAGE`           | `ghcr.io/addison16/commandtable:latest` | Published image; use a version or digest to pin a release                          |
 
 Compose reads the `.env` beside `compose.yaml`. Release downloads call the template `docker.env.example`; its source filename is `.env.docker.example`. The separate `.env.example` is for contributor development. The image itself defaults to secure HTTP handling; Compose explicitly permits HTTP in the LAN example. Keep `ALLOW_INSECURE_HTTP=false` for an HTTPS origin.
 
@@ -122,8 +122,16 @@ Do not copy only a live `mtg-util.sqlite`: committed data may still be in its WA
 
 ## Update to the latest release
 
-1. [Back up](#back-up) the server and copy the verified file out. Export important browser-local games separately.
-2. Keep the existing `.env`, project name, volume and origin. Leave `MTG_IMAGE=ghcr.io/addison16/commanders-table:latest` to follow stable releases, then run:
+The primary image name is now `commandtable`. To switch an existing installation from `ghcr.io/addison16/commanders-table`, edit only the image setting in its existing `.env`:
+
+```dotenv
+MTG_IMAGE=ghcr.io/addison16/commandtable:latest
+```
+
+This is a one-time image-address change using the same v0.2.0 runtime, with no version bump or game reset. Keep the same Compose project and service names, data volume, configuration and public origin; do not create a replacement stack or volume. The old image address will remain a compatibility alias, and future releases will be published to both image names. The GitHub source repository remains `Addison16/commanders-table`.
+
+1. [Back up](#back-up) the running server and copy the verified file out. Export important browser-local games separately.
+2. Keep the existing settings and use `MTG_IMAGE=ghcr.io/addison16/commandtable:latest` to follow stable releases, then run:
 
    ```sh
    docker compose -p mtg-util -f compose.yaml pull
@@ -136,7 +144,7 @@ Do not copy only a live `mtg-util.sqlite`: committed data may still be in its WA
 
 Pulling `latest` downloads an image; it does not replace a running container. `up -d` applies the downloaded image while keeping the named volume. Docker managers can detect a changed tag, but unattended updates require an updater you configure. Do not replace your configured `.env` with the release example during updates.
 
-For a pinned installation, set `MTG_IMAGE` to a version such as `ghcr.io/addison16/commanders-table:0.2.0` or an image digest, then use the same `pull` and `up -d` commands. Changing a version pin is intentional; `latest` remains the standard install/update path.
+For a pinned installation, set `MTG_IMAGE` to a version such as `ghcr.io/addison16/commandtable:0.2.0` or an image digest, then use the same `pull` and `up -d` commands. Changing a version pin is intentional; `latest` remains the standard install/update path.
 
 Migrations execute in transactions. An older app refuses a newer database schema, so rollback can require the matching pre-update backup. Retain the previous image or version/digest and its configuration until the update is verified.
 
@@ -207,7 +215,7 @@ This fallback is an emulation-only verification image, not the published runtime
 
 ## Publishing a release
 
-Source is published at `Addison16/commanders-table`, with public images at `ghcr.io/addison16/commanders-table`. The workflow uses the repository owner's lowercase name, so a fork publishes under its own owner. Set `MTG_IMAGE` when consuming a fork's image. No Docker Hub account or stored registry password is needed: the workflow uses GitHub's scoped `GITHUB_TOKEN`.
+Source remains at `Addison16/commanders-table`. The primary image path is `ghcr.io/addison16/commandtable`; `ghcr.io/addison16/commanders-table` is retained as the compatibility image path. Future releases will publish the same application to both names. The workflow uses the repository owner's lowercase name, so a fork publishes under its own owner. Set `MTG_IMAGE` when consuming a fork's image. No Docker Hub account or stored registry password is needed: the workflow uses GitHub's scoped `GITHUB_TOKEN`.
 
 For a new fork, enable GitHub Actions and verify its image configuration before publishing. The initial release used:
 
@@ -229,9 +237,9 @@ git push origin main v0.1.5
 
 Release validation rejects a tag that differs from the package/lockfile version or lacks a source license. The same reusable verification workflow runs on PRs, `main`, and releases: lint, types, domain/storage/server tests, Chromium/WebKit, production PWA/HTTPS checks, and native container smoke tests for both architectures. Only a passing release builds and pushes the combined image, creates GitHub release notes, and attaches the Compose/environment files. Official actions are pinned to verified release commits. A failed release can be rerun; publication does not alter the running server.
 
-Each release publishes a version tag and a full commit `sha-…` tag. Stable versions also update `stable` and `latest`; prereleases such as `v0.2.0-rc.1` do not move those aliases. Users pull the updated tag and recreate their container while keeping the same volume and origin, or use their Docker manager's update controls. Automatic unattended restarts require an updater configured by that server's operator.
+Each release publishes a version tag and a full commit `sha-…` tag to both image names. Stable versions also update `stable` and `latest` on both; prereleases such as `v0.2.0-rc.1` do not move those aliases. Users pull the updated tag and recreate their container while keeping the same volume and origin, or use their Docker manager's update controls. Automatic unattended restarts require an updater configured by that server's operator.
 
-The existing `commanders-table` package is public, and its unauthenticated pull has been verified. For a new package or fork, check its visibility after the first image publishes. If it is private, open the package's settings, select **Change visibility → Public**, and confirm. Subsequent versions keep the package's visibility. See [GitHub's package visibility documentation](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility#configuring-visibility-of-packages-for-your-personal-account).
+Both `commandtable` and the `commanders-table` compatibility package are public, and unauthenticated pulls have been verified. For a new fork, check each package for public visibility after its first image publication. If it is private, open the package's settings, select **Change visibility → Public**, and confirm. Subsequent versions keep the package's visibility. See [GitHub's package visibility documentation](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility#configuring-visibility-of-packages-for-your-personal-account).
 
 Releases attach `compose.yaml` and `docker.env.example`. Copy the latter to `.env` before configuring the origin and starting Compose. The source file remains `.env.docker.example`; the workflow gives the download a visible filename that GitHub preserves.
 

@@ -2,6 +2,16 @@
 
 Entries record results and deployment state at the time of each check; historical `latest` digests and local-only status are not statements about the current release.
 
+## September 18 Docker image address update
+
+The requested primary image is now `ghcr.io/addison16/commandtable:latest`. The [migration workflow](https://github.com/Addison16/commanders-table/actions/runs/35336598346) copied the existing v0.2.0 images with all architectures and attestations and required digest preservation. The source release tag and application version are unchanged. The `commanders-table` package remains available; future releases publish version, commit, stable and latest tags to both names.
+
+Anonymous registry reads verified identical old/new `0.2.0` and `stable` indexes (`sha256:aee42c92b869408b53b05eb53be5356d4155b1f01e4077463ad4316bde8ddbe2`) and identical `latest` indexes (`sha256:f1fd2ba7bdeaa6f3d84cffea4d835000ac56b665c986914adf46f006404fe988`). Both architectures, attestations, config hashes, version/source/license labels and embedded licenses were checked. An actual Docker pull without credentials passed, and the new package page's first command uses `commandtable:latest`.
+
+Compose configuration, actionlint, formatting and 15 targeted workflow checks passed, including stable/prerelease tags, release-download retries and fail-closed package refresh cases. Current README/deployment examples, Compose/environment defaults and the v0.2.0 release body/downloads use the new image address. The historical source tag remains intact; the release's installation downloads were refreshed for the address change.
+
+The running service now uses the anonymously pulled `commandtable:latest` image with the existing Compose project, data volume and public origin. A verified database backup, previous image and previous configuration were retained. Exact before/after hashes match all saved server records. The container is healthy, HTTPS requests succeed, and the HTML, service worker, manifest and health response are byte-identical before and after recreation. This is the same already-tested app image; no application or browser-storage changes were introduced.
+
 ## September 17 v0.2.0 publication
 
 The user explicitly authorized publication of all current source and Docker improvements as **[Command Table v0.2.0](https://github.com/Addison16/commanders-table/releases/tag/v0.2.0)**, release commit `b04ef2f26ee1f5075723d04971e2f4753998b552`. The release includes the rebrand, fresh-game/rematch flow, automatic mobile layouts, group life effects, commander rulings, recap PNGs, player-status badges and Docker-first hosting instructions. The earlier local-only entries below are historical preview records; these improvements are now published.
