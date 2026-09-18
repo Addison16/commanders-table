@@ -1,0 +1,89 @@
+name: Copy v0.2.0 to commandtable
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: publish-commanders-table
+  cancel-in-progress: false
+jobs:
+  copy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Install registry copy tool
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends skopeo
+      - name: Copy the published images without rebuilding
+        env:
+          IMAGE_OWNER: ${{ github.repository_owner }}
+          IMAGE_ACTOR: ${{ github.actor }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          source="ghcr.io/${IMAGE_OWNER,,}/commanders-table"
+          target="ghcr.io/${IMAGE_OWNER,,}/commandtable"
+          version_digest=sha256:aee42c92b869408b53b05eb53be5356d4155b1f01e4077463ad4316bde8ddbe2
+          latest_digest=sha256:f1fd2ba7bdeaa6f3d84cffea4d835000ac56b665c986914adf46f006404fe988
+          export REGISTRY_AUTH_FILE="$RUNNER_TEMP/image-migration-auth.json"
+          trap 'rm -f "$REGISTRY_AUTH_FILE"' EXIT
+          printf '%s' "$GH_TOKEN" | skopeo login --username "$IMAGE_ACTOR" --password-stdin ghcr.io
+
+          # Stop if a newer release has appeared; never roll latest back.
+          for tag in 0.2.0 stable latest; do
+            expected="$version_digest"
+            if [[ "$tag" == latest ]]; then expected="$latest_digest"; fi
+            skopeo inspect --raw "docker://$source:$tag" > "$RUNNER_TEMP/source-$tag.json"
+            actual="sha256:$(sha256sum "$RUNNER_TEMP/source-$tag.json" | cut -d ' ' -f 1)"
+            [[ "$actual" == "$expected" ]] || { echo "Source $tag changed; refusing an outdated migration."; exit 1; }
+          done
+
+          # Copy all architectures and attestations. Digest preservation must
+          # succeed; the old package, tags, source and release remain intact.
+          # latest is copied last so its package-page install command stays first.
+          for tag in 0.2.0 stable latest; do
+            expected="$version_digest"
+            if [[ "$tag" == latest ]]; then expected="$latest_digest"; fi
+            skopeo copy --all --preserve-digests --retry-times 3 \
+              "docker://$source@$expected" "docker://$target:$tag"
+            skopeo inspect --raw "docker://$target:$tag" > "$RUNNER_TEMP/target-$tag.json"
+            cmp "$RUNNER_TEMP/source-$tag.json" "$RUNNER_TEMP/target-$tag.json"
+            printf 'Copied `%s:%s` with unchanged index `%s`.\n\n' "$target" "$tag" "$expected" >> "$GITHUB_STEP_SUMMARY"
+          done
+      - name: Verify anonymous access to the new package
+        env:
+          IMAGE_OWNER: ${{ github.repository_owner }}
+        shell: python
+        run: |
+          import hashlib
+          import json
+          import os
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          repository = os.environ['IMAGE_OWNER'].lower() + '/commandtable'
+          query = urllib.parse.urlencode({'service': 'ghcr.io', 'scope': f'repository:{repository}:pull'})
+          try:
+              with urllib.request.urlopen('https://ghcr.io/token?' + query, timeout=30) as response:
+                  token = json.load(response)['token']
+              request = urllib.request.Request(f'https://ghcr.io/v2/{repository}/manifests/latest', headers={
+                  'Authorization': 'Bearer ' + token,
+                  'Accept': 'application/vnd.oci.image.index.v1+json',
+              })
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  digest = 'sha256:' + hashlib.sha256(response.read()).hexdigest()
+              assert digest == 'sha256:f1fd2ba7bdeaa6f3d84cffea4d835000ac56b665c986914adf46f006404fe988'
+          except urllib.error.HTTPError as error:
+              if error.code not in (401, 403):
+                  raise
+              message = 'The images were copied, but anonymous access is denied. A package administrator must change commandtable visibility to Public in GitHub Package settings before publishing the new install instructions.'
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+                  summary.write(message + '\n')
+              raise SystemExit(message) from None
+          print('Anonymous latest pull verified with the original multiarchitecture digest.')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write(f'Anonymous pull verified: `docker pull ghcr.io/{repository}:latest`.\n')
