@@ -10,7 +10,14 @@ import {
   GAME_RECOVERY_MS,
 } from '../src/shared/game.js';
 import { newId, randomInt } from '../src/shared/random.js';
-import { gameSchema, seatProfileSchema, setupSchema, type Command, type Game } from '../src/shared/schema.js';
+import {
+  gameSchema,
+  seatProfileSchema,
+  setupSchema,
+  LIMIT,
+  type Command,
+  type Game,
+} from '../src/shared/schema.js';
 import type { CommanderCard } from '../src/shared/cards.js';
 const initial = () => {
   const setup = defaultSetup();
@@ -30,6 +37,107 @@ function action(g: Game, c: Command, groupId?: string, now = 2000) {
   });
 }
 describe('game invariants', () => {
+  it('changes selected opponents together, keeps caster gain explicit, and undoes the entire action', () => {
+    const game = initial();
+    const [casterId, first, second, untouched] = game.order;
+    const original = structuredClone(game);
+    for (const gain of [undefined, 0, 7]) {
+      const changed = action(game, {
+        type: 'groupLife',
+        casterId,
+        targetIds: [first, second],
+        loss: 5,
+        ...(gain === undefined ? {} : { gain }),
+      });
+      expect(changed.players[casterId].life).toBe(40 + (gain ?? 0));
+      expect(changed.players[first].life).toBe(35);
+      expect(changed.players[second].life).toBe(35);
+      expect(changed.players[untouched]).toEqual(game.players[untouched]);
+      expect(changed.commanders).toEqual(game.commanders);
+      expect(changed.damageReceived).toEqual(game.damageReceived);
+      expect(changed.revision).toBe(game.revision + 1);
+      expect(changed.history).toHaveLength(1);
+      expect(changed.history[0].summary).toContain('2 opponents lost 5 life each');
+      expect(changed.undo).toHaveLength(1);
+      const restored = action(gameSchema.parse(JSON.parse(JSON.stringify(changed))), { type: 'undo' });
+      expect(restored.players).toEqual(game.players);
+      expect(action(restored, { type: 'redo' }).players).toEqual(changed.players);
+      expect(game).toEqual(original);
+    }
+  });
+  it('keeps an opponents-only change separate from held-button undo groups', () => {
+    const game = initial();
+    const [casterId, targetId] = game.order;
+    const groupId = newId();
+    const before = action(game, { type: 'adjust', playerId: casterId, field: 'life', delta: 1 }, groupId);
+    const batch = action(
+      before,
+      { type: 'groupLife', casterId, targetIds: [targetId], loss: 3, gain: 2 },
+      groupId,
+    );
+    const after = action(batch, { type: 'adjust', playerId: casterId, field: 'life', delta: 1 }, groupId);
+    expect(after.undo).toHaveLength(3);
+    const withoutLastTap = action(after, { type: 'undo' });
+    expect(withoutLastTap.players).toEqual(batch.players);
+    expect(action(withoutLastTap, { type: 'undo' }).players).toEqual(before.players);
+  });
+  it('rejects forged caster targets, duplicate opponents and invalid life amounts without changing the game', () => {
+    const game = initial();
+    const [casterId, targetId] = game.order;
+    const original = structuredClone(game);
+    const command: Extract<Command, { type: 'groupLife' }> = {
+      type: 'groupLife',
+      casterId,
+      targetIds: [targetId],
+      loss: 3,
+    };
+    for (const invalid of [
+      { targetIds: [] },
+      { targetIds: [targetId, targetId] },
+      { targetIds: [targetId, casterId] },
+      { targetIds: [casterId] },
+      { casterId: newId() },
+      { targetIds: [targetId, newId()] },
+      { loss: 0 },
+      { loss: -1 },
+      { loss: 1.5 },
+      { loss: LIMIT + 1 },
+      { gain: -1 },
+      { gain: 0.5 },
+      { gain: LIMIT + 1 },
+    ]) {
+      expect(() => action(game, { ...command, ...invalid })).toThrow();
+      expect(game).toEqual(original);
+    }
+  });
+  it('rejects eliminated participants, ended games and any out-of-bounds batch atomically', () => {
+    const initialGame = initial();
+    const [casterId, first, second] = initialGame.order;
+    const command: Extract<Command, { type: 'groupLife' }> = {
+      type: 'groupLife',
+      casterId,
+      targetIds: [first, second],
+      loss: 2,
+      gain: 2,
+    };
+    const cases = [
+      action(initialGame, { type: 'eliminate', playerId: casterId, eliminated: true }),
+      action(initialGame, { type: 'eliminate', playerId: second, eliminated: true }),
+      action(initialGame, { type: 'set', playerId: second, field: 'life', value: -LIMIT + 1 }),
+      action(initialGame, { type: 'set', playerId: casterId, field: 'life', value: LIMIT - 1 }),
+      action(initialGame, { type: 'end' }),
+    ];
+    for (const game of cases) {
+      const original = structuredClone(game);
+      expect(() => action(game, command)).toThrow();
+      expect(game).toEqual(original);
+    }
+    let boundary = action(initialGame, { type: 'set', playerId: second, field: 'life', value: -LIMIT + 2 });
+    boundary = action(boundary, { type: 'set', playerId: casterId, field: 'life', value: LIMIT - 2 });
+    const changed = action(boundary, command);
+    expect(changed.players[second].life).toBe(-LIMIT);
+    expect(changed.players[casterId].life).toBe(LIMIT);
+  });
   it('saves player details and both commanders as one reversible change without resetting play', () => {
     let game = initial();
     const playerId = game.order[0];
@@ -358,6 +466,126 @@ describe('game invariants', () => {
     expect(reset.commanders[cs[0].id].casts).toBe(0);
     expect(reset.players[id].eliminated).toBe(false);
   });
+  it.each([
+    { startingLife: 40, commander: true },
+    { startingLife: 20, commander: false },
+    { startingLife: 73, commander: true },
+  ])(
+    'rematches at $startingLife life with fresh stats and editable saved profiles',
+    ({ startingLife, commander }) => {
+      const setup = defaultSetup(3, commander);
+      setup.settings.startingLife = startingLife;
+      if (startingLife === 73) setup.settings.preset = 'Custom';
+      setup.settings.turnTracking = true;
+      setup.settings.counters = ['Energy', 'Experience'];
+      setup.settings.markerTrackers = ['monarch', 'initiative'];
+      const card: CommanderCard = {
+        id: newId(),
+        name: 'Tymna the Weaver',
+        imageUrl: 'https://cards.scryfall.io/art_crop/front/1/2/12345678-1234-4234-8234-123456789abc.jpg',
+        scryfallUrl: 'https://scryfall.com/card/test/1/tymna-the-weaver',
+        artist: 'Example Artist',
+      };
+      setup.seats[0] = {
+        name: 'Rowan',
+        color: 'teal',
+        commanders: [card.name, 'Partner'],
+        commanderCards: [card, null],
+      };
+      let game = createGame(setup, newId, 1000);
+      const firstPlayer = game.order[0];
+      const firstCommander = Object.values(game.commanders)[0];
+      for (const playerId of game.order) {
+        game = action(game, { type: 'set', playerId, field: 'life', value: 2 });
+        game = action(game, { type: 'set', playerId, field: 'poison', value: 9 });
+        game = action(game, { type: 'set', playerId, field: 'Energy', value: 12 });
+        game = action(game, { type: 'set', playerId, field: 'Experience', value: 4 });
+        game = action(game, {
+          type: 'damage',
+          playerId,
+          commanderId: firstCommander.id,
+          amount: 15,
+          subtractLife: false,
+        });
+      }
+      for (const commanderId of Object.keys(game.commanders))
+        game = action(game, { type: 'castSet', commanderId, value: 3 });
+      game = action(game, { type: 'customize', playerId: firstPlayer, name: 'Rowan updated', color: 'rose' });
+      game = action(game, { type: 'marker', marker: 'monarch', playerId: firstPlayer });
+      game = action(game, { type: 'marker', marker: 'initiative', playerId: game.order[1] });
+      game = action(game, { type: 'turn', playerId: firstPlayer, advance: true });
+      game = action(game, { type: 'turn', playerId: game.order[1], advance: true });
+      game = action(game, { type: 'timer', action: 'pause' }, undefined, 3000);
+      game = action(game, { type: 'timer', action: 'resume' }, undefined, 4000);
+      game = action(game, { type: 'timer', action: 'pause' }, undefined, 5000);
+      game = action(game, { type: 'eliminate', playerId: firstPlayer, eliminated: true });
+      const rollCommand = { type: 'roll', kind: 'd20-each', sides: 20, count: 1 } as const;
+      const context = { id: newId(), operationId: newId(), actorId, actor: 'Alex', now: 6000 };
+      let die = 0;
+      game = reduceGame(game, rollCommand, {
+        ...context,
+        roll: makeRoll(game, rollCommand, context, () => die++),
+      });
+      game = action(game, { type: 'adjust', playerId: game.order[1], field: 'life', delta: 1 });
+      game = action(game, { type: 'undo' });
+      expect(game.redo).toHaveLength(1);
+      expect(game.rolls).toHaveLength(1);
+
+      for (const previous of [game, action(game, { type: 'end' }, undefined, 7000)]) {
+        const saved = structuredClone(previous);
+        const rematch = action(previous, { type: 'rematch' }, undefined, 8000);
+        expect(previous).toEqual(saved);
+        expect(rematch.id).not.toBe(previous.id);
+        expect(rematch.order).toEqual(previous.order);
+        expect(rematch.settings).toEqual(setup.settings);
+        expect(rematch.status).toBe('active');
+        expect(rematch.endedAt).toBeNull();
+        for (const playerId of previous.order)
+          expect(rematch.players[playerId]).toEqual({
+            ...previous.players[playerId],
+            life: startingLife,
+            poison: 0,
+            counters: {},
+            eliminated: false,
+          });
+        for (const commanderId of Object.keys(previous.commanders))
+          expect(rematch.commanders[commanderId]).toEqual({
+            ...previous.commanders[commanderId],
+            casts: 0,
+          });
+        expect(rematch.damageReceived).toEqual({});
+        expect(rematch.markers).toEqual({ monarch: null, initiative: null });
+        expect(rematch.turn).toEqual({ playerId: null, number: 0 });
+        expect(rematch.timer).toEqual({ startedAt: 8000, pausedAt: null, pausedMs: 0 });
+        expect(elapsed(rematch, 8000)).toBe(0);
+        expect(rematch.rolls).toEqual([]);
+        expect(rematch.undo).toEqual([]);
+        expect(rematch.redo).toEqual([]);
+        expect(rematch.history).toHaveLength(1);
+        expect(rematch.history[0]).toMatchObject({ summary: 'A new game began', at: 8000 });
+        expect(() => action(rematch, { type: 'undo' })).toThrow('Nothing to undo');
+        expect(() => action(rematch, { type: 'redo' })).toThrow('Nothing to redo');
+
+        const edited = action(rematch, {
+          type: 'editPlayer',
+          playerId: firstPlayer,
+          name: 'Rowan next game',
+          color: 'blue',
+          commanders: Object.values(rematch.commanders)
+            .filter((entry) => entry.ownerId === firstPlayer)
+            .map((entry, index) => ({
+              id: entry.id,
+              label: index === 0 ? 'New commander' : entry.label,
+              card: index === 0 ? null : entry.card,
+            })),
+        });
+        expect(edited.players[firstPlayer].name).toBe('Rowan next game');
+        expect(edited.commanders[firstCommander.id].label).toBe('New commander');
+        expect(edited.players[firstPlayer].life).toBe(startingLife);
+        expect(previous).toEqual(saved);
+      }
+    },
+  );
   it('timer derives elapsed time from timestamps and pause duration', () => {
     let g = initial();
     g = action(g, { type: 'timer', action: 'pause' }, undefined, 4000);

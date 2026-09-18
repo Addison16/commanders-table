@@ -20,16 +20,19 @@ import { Board } from '../features/Board.js';
 import { SetupSheet } from '../features/Setup.js';
 import { PlayerDetails } from '../features/PlayerDetails.js';
 import { Utilities } from '../features/Utilities.js';
+import { GroupLife } from '../features/GroupLife.js';
 import { GameMenu, HistorySheet } from '../features/GameMenu.js';
 import { Settings, Enhancements, PwaUpdates } from '../features/Settings.js';
 import { JoinSheet, RoomSheet, Lobby } from '../features/Rooms.js';
 import { RecentGames } from '../features/RecentGames.js';
 import { DiceRoll } from '../dice/DiceRoll.js';
 import { TableLayout } from '../features/TableLayout.js';
+import { useTableLayout } from '../features/useTableLayout.js';
 
 export function App() {
   const state = useApp(),
     { game, profile, mode } = state;
+  const { layout } = useTableLayout();
   const [announcement, setAnnouncement] = useState('');
   const summary = state.pending === 0 ? (game?.history.at(-1)?.summary ?? '') : '';
   useEffect(() => {
@@ -141,13 +144,13 @@ export function App() {
     <>
       <Enhancements />
       <div
-        className={`app ${state.screen === 'board' ? 'playing' : ''} ${profile.tableLayout === 'shared' ? 'shared-table-view' : ''}`}
+        className={`app ${state.screen === 'board' ? 'playing' : ''} ${layout === 'shared' ? 'shared-table-view' : ''}`}
       >
         <header className="app-header">
           <button className="brand" onClick={home} aria-label="Home & recent games">
             <img src="/icon.svg" alt="" />
             <span>
-              Commander's <b>Table</b>
+              Command <b>Table</b>
             </span>
           </button>
           <div className="header-right">
@@ -225,7 +228,7 @@ export function App() {
                     void repository
                       .get('active')
                       .then((value) =>
-                        downloadText(JSON.stringify(value, null, 2), 'commanders-table-recovery.json'),
+                        downloadText(JSON.stringify(value, null, 2), 'command-table-recovery.json'),
                       )
                       .catch(report)
                   }
@@ -427,8 +430,13 @@ export function App() {
         <PlayerDetails key={sheet} playerId={sheet.slice(7)} onClose={close} />
       )}
       {sheet === 'utilities' && game && (
-        <Utilities onClose={close} onReplay={(roll) => showRoll(state.confirmed!, roll, true)} />
+        <Utilities
+          onClose={close}
+          onReplay={(roll) => showRoll(state.confirmed!, roll, true)}
+          onGroupLife={() => open('group-life')}
+        />
       )}
+      {sheet === 'group-life' && game && <GroupLife key={game.id} onClose={close} />}
       {sheet === 'menu' && game && <GameMenu onClose={close} open={open} />}
       {sheet === 'history' && game && <HistorySheet onClose={close} />}
       {sheet === 'settings' && <Settings onClose={close} />}

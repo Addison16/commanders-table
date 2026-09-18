@@ -61,7 +61,8 @@ let editorResume: Promise<void> | undefined;
 let localPending: { command: Command; context: Parameters<typeof reduceGame>[2] }[] = [];
 let roomSend: ((command: Command | AdminCommand, groupId?: string) => Promise<void>) | undefined;
 type PlayerSave = Extract<Command, { type: 'editPlayer' }>;
-let roomSavePlayer: ((command: PlayerSave) => Promise<boolean>) | undefined;
+type SavedCommand = Extract<Command, { type: 'editPlayer' | 'groupLife' }>;
+let roomSavePlayer: ((command: SavedCommand) => Promise<boolean>) | undefined;
 let disconnectRoom: (() => void) | undefined;
 export function registerRoom(
   send: typeof roomSend,
@@ -217,7 +218,31 @@ export function act(command: Command | AdminCommand, groupId?: string): Promise<
 }
 
 /** A player editor may discard its draft only after this returns true. */
-export async function savePlayer(command: PlayerSave): Promise<boolean> {
+export function savePlayer(command: PlayerSave): Promise<boolean> {
+  return saveCommand(command);
+}
+export type LifeReview = {
+  gameId: string;
+  revision: number;
+  mode: State['mode'];
+  roomId?: string;
+  roomRevision?: number;
+};
+/** Apply a reviewed group effect only to the same confirmed game and totals. */
+export function saveGroupLife(command: Extract<Command, { type: 'groupLife' }>, review: LifeReview) {
+  return saveCommand(command, review);
+}
+async function saveCommand(command: SavedCommand, review?: LifeReview): Promise<boolean> {
+  const reviewMatches = (state: State) =>
+    !review ||
+    (state.confirmed?.id === review.gameId &&
+      state.confirmed.revision === review.revision &&
+      state.mode === review.mode &&
+      state.room?.id === review.roomId &&
+      state.room?.revision === review.roomRevision &&
+      state.screen === 'board' &&
+      !state.pending &&
+      isHost());
   try {
     await editorResume;
   } catch (error) {
@@ -225,9 +250,13 @@ export async function savePlayer(command: PlayerSave): Promise<boolean> {
     return false;
   }
   const state = useApp.getState();
+  if (!reviewMatches(state)) {
+    report(new Error('The table changed. Review the current totals before applying this effect.'));
+    return false;
+  }
   if (state.mode === 'room') {
     if (!roomSavePlayer) {
-      report(new Error('Reconnect before saving this player. Your edits have been kept.'));
+      report(new Error('Reconnect before saving. Your changes have been kept.'));
       return false;
     }
     try {
@@ -249,8 +278,7 @@ export async function savePlayer(command: PlayerSave): Promise<boolean> {
     actorId: state.profile.installationId,
     actor: 'This device',
   };
-  // Use the same durable queue as life changes, without previewing a successful
-  // player edit before its write completes or discarding another queued change.
+  // Wait for a durable write before dismissing a reviewed effect or edited draft.
   const result = queue
     .catch(report)
     .then(async () => {
@@ -261,7 +289,8 @@ export async function savePlayer(command: PlayerSave): Promise<boolean> {
         !confirmed ||
         confirmed.id !== gameId ||
         current.readOnly ||
-        current.recovery
+        current.recovery ||
+        !reviewMatches(current)
       ) {
         report(new Error('The game changed before saving. Your edits have been kept.'));
         return false;
@@ -287,7 +316,7 @@ export async function savePlayer(command: PlayerSave): Promise<boolean> {
         } else if (writing) {
           useApp.setState({
             storageWarning:
-              'The player could not be saved. Your edits have been kept; check available browser storage.',
+              'The change could not be saved. Your edits have been kept; check available browser storage.',
           });
         }
         report(error);

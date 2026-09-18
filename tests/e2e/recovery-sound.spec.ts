@@ -4,7 +4,10 @@ import type { Game } from '../../src/shared/schema.js';
 async function endGame(page: Page) {
   await page.getByRole('button', { name: 'Game menu', exact: true }).click();
   await page.getByRole('button', { name: 'End game', exact: true }).click();
-  await page.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await page
+    .getByRole('dialog', { name: 'End this game?', exact: true })
+    .getByRole('button', { name: 'End game', exact: true })
+    .click();
   await expect(page.getByRole('button', { name: 'Quick 4 · 40 life', exact: true })).toBeVisible();
   await expect(page.locator('.board')).toHaveCount(0);
 }

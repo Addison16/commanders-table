@@ -42,6 +42,10 @@ try {
   );
   await page.getByRole('dialog').getByRole('button', { name: 'Create room', exact: true }).click();
   const room = await (await created).json();
+  // Creating a room starts a fresh setup instead of reusing the local 20-life game.
+  expect(room.game.settings.startingLife).toBe(40);
+  expect(room.seats).toHaveLength(4);
+  await expect(page.getByTestId('life-0')).toHaveText('40');
   await page.getByRole('button', { name: 'Live room', exact: true }).click();
   expect(new URL(await page.getByLabel('Join link', { exact: true }).inputValue()).origin).toBe(
     config.publicOrigin,
@@ -53,10 +57,10 @@ try {
       const result = await page.request.get(`${config.publicOrigin}/api/rooms/${room.id}`);
       return (await result.json()).game.players[room.seats[0].id].life;
     })
-    .toBe(19);
+    .toBe(39);
   await page.reload();
   await expect(page.getByRole('button', { name: 'Live room', exact: true })).toBeVisible();
-  await expect(page.getByTestId('life-0')).toHaveText('19');
+  await expect(page.getByTestId('life-0')).toHaveText('39');
   console.info(
     'PASS: actual HTTP LAN origin, insecure-context ID fallback, IndexedDB resume, guest cookie, public invitation address and shared update/reconnect. This is a desktop browser, not a physical-phone check.',
   );

@@ -416,14 +416,16 @@ async function send(command: Command | AdminCommand, groupId?: string, track?: (
   }
   targetSocket.send(JSON.stringify({ type: 'command', csrf, envelope: env }));
 }
-function savePlayer(command: Extract<Command, { type: 'editPlayer' }>): Promise<boolean> {
+function savePlayer(command: Extract<Command, { type: 'editPlayer' | 'groupLife' }>): Promise<boolean> {
   return new Promise((resolve) => {
     let operationId: string | undefined;
     void send(command, undefined, (env) => {
       operationId = env.operationId;
       const timer = setTimeout(() => {
         report(
-          new Error('The save has not been confirmed. Your edits have been kept while the room reconnects.'),
+          new Error(
+            'The save has not been confirmed. Check the totals and history after reconnecting before trying again.',
+          ),
         );
         finishConfirmation(env.operationId, false);
         if (activeRoom === env.roomId && useApp.getState().mode === 'room') void connectRoom(env.roomId);

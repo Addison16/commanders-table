@@ -1,14 +1,11 @@
 import { useState } from 'react';
-import { defaultSetup, setupFromGame } from '../../shared/game.js';
+import { defaultSetup } from '../../shared/game.js';
 import { palettes, setupSchema, type Setup } from '../../shared/schema.js';
 import { useApp, report, startLocal, updateProfile } from '../app/store.js';
 import { Field, Icon, Sheet, Toggle } from '../components/ui.js';
 import { CommanderInput } from '../components/CommanderInput.js';
 export function SetupSheet({ mode, onClose }: { mode: 'local' | 'room'; onClose: () => void }) {
-  const [setup, setSetup] = useState<Setup>(() => {
-    const { confirmed, profile } = useApp.getState();
-    return confirmed ? setupFromGame(confirmed) : (profile.setup ?? defaultSetup());
-  });
+  const [setup, setSetup] = useState<Setup>(() => defaultSetup());
   const [busy, setBusy] = useState(false);
   const [displayName, setDisplayName] = useState(useApp.getState().profile.displayName || 'Host');
   const settings = setup.settings;

@@ -1350,10 +1350,16 @@
     z-index: 51;
     background: #192230;
     width: min(400px, calc(100% - 32px));
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
     border: 1px solid #d6b66a44;
     border-radius: 16px;
     padding: 24px;
     box-shadow: 0 20px 80px #0009;
+  }
+  .confirmation-choices {
+    display: grid;
+    gap: 10px;
   }
   .confirm-dialog h2 {
     font:

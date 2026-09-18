@@ -8,8 +8,8 @@ export default defineConfig({
       registerType: 'prompt',
       includeAssets: ['icon.svg', 'icon-192.png', 'icon-512.png'],
       manifest: {
-        name: "Commander's Table",
-        short_name: "Commander's Table",
+        name: 'Command Table',
+        short_name: 'Command Table',
         description: 'A little magic for your table.',
         theme_color: '#090d14',
         background_color: '#090d14',

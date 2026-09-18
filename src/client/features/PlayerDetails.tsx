@@ -4,6 +4,7 @@ import { act, canEdit, isHost, savePlayer, useApp, updateProfile } from '../app/
 import { ask, Field, Icon, Sheet, Toggle } from '../components/ui.js';
 import { HoldButton } from '../components/HoldButton.js';
 import { facesAcross } from './TableLayout.js';
+import { useTableLayout } from './useTableLayout.js';
 import { CommanderInput } from '../components/CommanderInput.js';
 import { CommanderCredits } from '../components/CommanderArtwork.js';
 import { CommanderReader } from '../components/CommanderReader.js';
@@ -99,6 +100,7 @@ export function PlayerDetails({ playerId, onClose }: { playerId: string; onClose
     readOnly = useApp((s) => s.readOnly),
     mode = useApp((s) => s.mode);
   const player = game.players[playerId];
+  const { layout, automatic } = useTableLayout();
   const [source, setSource] = useState(Object.keys(game.commanders)[0]);
   const [amount, setAmount] = useState('1');
   const [subtractLife, setSubtractLife] = useState(true);
@@ -369,16 +371,24 @@ export function PlayerDetails({ playerId, onClose }: { playerId: string; onClose
         <h3>Make it yours</h3>
         <Toggle
           checked={
-            profile.rotations[playerId] ??
-            facesAcross(profile.tableLayout, game.order.indexOf(playerId), game.order.length)
+            (!automatic ? profile.rotations[playerId] : undefined) ??
+            facesAcross(layout, game.order.indexOf(playerId), game.order.length)
           }
-          onChange={(flipped) =>
-            void updateProfile({ rotations: { ...profile.rotations, [playerId]: flipped } })
-          }
+          onChange={(flipped) => {
+            dispatchEvent(new Event('mtg-cancel-input'));
+            void updateProfile({
+              autoTableLayout: false,
+              tableLayout: layout,
+              rotations: { ...(!automatic ? profile.rotations : {}), [playerId]: flipped },
+            });
+          }}
         >
           Face this seat across the table
         </Toggle>
-        <p className="hint">Only changes the view on this device. Player sheets stay upright.</p>
+        <p className="hint">
+          Only changes the view on this device. Flipping a seat turns off automatic layout. Player sheets stay
+          upright.
+        </p>
       </section>
       {!player.eliminated && (
         <button

@@ -152,7 +152,10 @@ test('dice stay available after ending a game and an expired editor lease recove
   await expect(second.getByRole('button', { name: "Decrease Player 1's life" })).toBeEnabled();
   await second.getByRole('button', { name: 'Game menu', exact: true }).click();
   await second.getByRole('button', { name: 'End game', exact: true }).click();
-  await second.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await second
+    .getByRole('dialog', { name: 'End this game?', exact: true })
+    .getByRole('button', { name: 'End game', exact: true })
+    .click();
   await expect(second.getByRole('button', { name: 'Quick 4 · 40 life', exact: true })).toBeVisible();
   await second.getByRole('button', { name: /^View final one-phone game:/ }).click();
   await second.getByRole('button', { name: 'Utilities', exact: true }).click();

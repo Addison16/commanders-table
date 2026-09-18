@@ -21,6 +21,7 @@ const preferencesSchema = z.object({
   wake: z.boolean(),
   rotations: z.record(z.string(), z.boolean()),
   tableLayout: z.enum(['upright', 'shared']).default('upright'),
+  autoTableLayout: z.boolean().default(true),
   lastMode: z.enum(['local', 'room']).nullable(),
   roomId: z.string().nullable(),
   displayName: z.string().max(40),
@@ -38,6 +39,7 @@ export const initialProfile = (): Profile => ({
   wake: false,
   rotations: {},
   tableLayout: 'upright',
+  autoTableLayout: true,
   lastMode: null,
   roomId: null,
   displayName: '',
@@ -63,7 +65,7 @@ export class Repository {
           if (!db.objectStoreNames.contains('records')) db.createObjectStore('records');
         },
         blocked: () => {
-          this.warning = "Close older Commander's Table tabs to finish the storage update.";
+          this.warning = 'Close older Command Table tabs to finish the storage update.';
         },
       });
     } catch {
@@ -337,7 +339,7 @@ export function parseImport(text: string): Game {
     throw new Error('Backup is too large (maximum 2 MB)');
   const data = JSON.parse(text) as { format?: unknown; version?: unknown; game?: unknown };
   if (data.format !== 'mtg-util-game' || data.version !== 1)
-    throw new Error("Unsupported backup format/version. Use a Commander's Table game export.");
+    throw new Error('Unsupported backup format/version. Use a Command Table game export.');
   return gameSchema.parse(data.game);
 }
 export function gameExport(game: Game) {

@@ -2,8 +2,10 @@ import { z } from 'zod';
 import {
   cardDetailsSchema,
   cardImageUrlSchema,
+  cardRulingsSchema,
   commanderCardSchema,
   type CardDetails,
+  type CardRulings,
   type CommanderCard,
 } from '../shared/cards.js';
 
@@ -153,6 +155,36 @@ const detailsResponse = detailsFace.extend({
   card_faces: z.array(detailsFace).min(1).max(8).optional(),
 });
 
+const rulingsResponse = z.object({
+  object: z.literal('list'),
+  has_more: z.boolean(),
+  data: z
+    .array(
+      z.object({
+        object: z.literal('ruling'),
+        source: cardRulingsSchema.shape.rulings.element.shape.source,
+        published_at: cardRulingsSchema.shape.rulings.element.shape.publishedAt,
+        comment: cardRulingsSchema.shape.rulings.element.shape.comment,
+      }),
+    )
+    .max(200),
+});
+
+function rulingsFromResponse(cardId: string, value: unknown): CardRulings {
+  const parsed = rulingsResponse.safeParse(value);
+  if (!parsed.success) throw unavailable();
+  return {
+    cardId,
+    rulings: parsed.data.data.map((ruling) => ({
+      source: ruling.source,
+      publishedAt: ruling.published_at,
+      comment: ruling.comment,
+    })),
+    // Never follow an upstream next_page URL. The reader links to the full card page instead.
+    hasMore: parsed.data.has_more,
+  };
+}
+
 function detailsFromResponse(value: unknown): CardDetails {
   const parsed = detailsResponse.safeParse(value);
   if (!parsed.success) throw unavailable();
@@ -275,6 +307,16 @@ export class CardLookupService {
     }
   }
 
+  rulings(cardId: string): Promise<CardRulings> {
+    const parsed = uuid.safeParse(cardId);
+    if (!parsed.success)
+      return Promise.reject(new CardLookupError(400, 'Choose a commander card to read its rulings.'));
+    const normalized = parsed.data.toLowerCase();
+    return this.lookup(`${API}/cards/${normalized}/rulings`, (value) =>
+      rulingsFromResponse(normalized, value),
+    );
+  }
+
   private backoff() {
     return new CardLookupError(
       429,
@@ -319,7 +361,7 @@ export class CardLookupService {
           redirect: 'error',
           headers: {
             Accept: 'application/json',
-            'User-Agent': 'CommandersTable/0.1 (+https://github.com/Addison16/commanders-table)',
+            'User-Agent': 'CommandTable/0.1 (+https://github.com/Addison16/commanders-table)',
           },
           signal: AbortSignal.timeout(Math.min(6000, Math.max(1, deadline - this.now()))),
         });

@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cardDetailsSchema, cardImageUrlSchema, commanderCardSchema } from '../src/shared/cards.js';
+import {
+  cardDetailsSchema,
+  cardImageUrlSchema,
+  cardRulingsSchema,
+  commanderCardSchema,
+} from '../src/shared/cards.js';
 import { cardEndpoint, CardLookupService } from '../src/server/cards.js';
 import { buildApp } from '../src/server/app.js';
 import { readConfig } from '../src/server/config.js';
@@ -43,6 +48,35 @@ const details = {
     },
   ],
 };
+const rulingsUpstream = {
+  object: 'list',
+  has_more: false,
+  data: [
+    {
+      object: 'ruling',
+      oracle_id: id,
+      source: 'wotc',
+      published_at: '2024-02-29',
+      comment: 'Choose the targets as you put this ability on the stack.',
+    },
+    {
+      object: 'ruling',
+      oracle_id: id,
+      source: 'scryfall',
+      published_at: '2024-03-01',
+      comment: 'This note applies to both faces of the card.',
+    },
+  ],
+};
+const rulings = {
+  cardId: id,
+  rulings: rulingsUpstream.data.map((ruling) => ({
+    source: ruling.source,
+    publishedAt: ruling.published_at,
+    comment: ruling.comment,
+  })),
+  hasMore: false,
+};
 
 function clock() {
   let now = 1_800_000_000_000;
@@ -59,6 +93,22 @@ function clock() {
 afterEach(() => vi.restoreAllMocks());
 
 describe('safe commander card metadata', () => {
+  it('validates dated, attributed rulings without trusting arbitrary source names or invalid dates', () => {
+    expect(cardRulingsSchema.parse(rulings)).toEqual(rulings);
+    expect(cardRulingsSchema.parse({ ...rulings, rulings: [] }).rulings).toEqual([]);
+    for (const ruling of [
+      { ...rulings.rulings[0], source: 'official' },
+      { ...rulings.rulings[0], publishedAt: '2023-02-29' },
+      { ...rulings.rulings[0], publishedAt: '2024-02-29T00:00:00Z' },
+      { ...rulings.rulings[0], comment: ' ' },
+      { ...rulings.rulings[0], comment: 'x'.repeat(12001) },
+    ])
+      expect(cardRulingsSchema.safeParse({ ...rulings, rulings: [ruling] }).success).toBe(false);
+    expect(
+      cardRulingsSchema.safeParse({ ...rulings, rulings: Array(201).fill(rulings.rulings[0]) }).success,
+    ).toBe(false);
+  });
+
   it('validates bounded readable card details and keeps full scans separate from saved artwork', () => {
     expect(cardDetailsSchema.parse(details)).toEqual(details);
     expect(cardImageUrlSchema.parse(fullImageUrl.replace('/large/', '/normal/'))).toContain('/normal/');
@@ -161,6 +211,61 @@ describe('safe commander card metadata', () => {
 });
 
 describe('bounded Scryfall lookup', () => {
+  it('loads rulings by card ID, shares requests and caches empty results without following upstream URLs', async () => {
+    const time = clock();
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({ ...rulingsUpstream, has_more: true, next_page: 'http://127.0.0.1/private' }),
+      )
+      .mockImplementation(async () => Response.json({ object: 'list', has_more: false, data: [] }));
+    const service = new CardLookupService({ ...time, fetcher });
+    expect(await Promise.all([service.rulings(id), service.rulings(id.toUpperCase())])).toEqual([
+      { ...rulings, hasMore: true },
+      { ...rulings, hasMore: true },
+    ]);
+    expect(await service.rulings(id)).toEqual({ ...rulings, hasMore: true });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher.mock.calls[0][0]).toBe(`https://api.scryfall.com/cards/${id}/rulings`);
+    time.advance(24 * 60 * 60 * 1000);
+    expect(await service.rulings(id)).toEqual({ cardId: id, rulings: [], hasMore: false });
+    expect(await service.rulings(id)).toEqual({ cardId: id, rulings: [], hasMore: false });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    for (const input of [id + '/rulings', 'http://127.0.0.1/private', 'Example Commander', ''])
+      await expect(service.rulings(input)).rejects.toMatchObject({ statusCode: 400 });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects malformed rulings without caching them and recovers on retry', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          ...rulingsUpstream,
+          data: [{ ...rulingsUpstream.data[0], published_at: 'not a date' }],
+        }),
+      )
+      .mockResolvedValueOnce(Response.json(rulingsUpstream));
+    const service = new CardLookupService({ ...clock(), fetcher });
+    await expect(service.rulings(id)).rejects.toMatchObject({ statusCode: 503 });
+    expect(await service.rulings(id)).toEqual(rulings);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('applies the same upstream backoff to rulings and other card lookups', async () => {
+    const time = clock();
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response('Rate limited', { status: 429, headers: { 'Retry-After': '60' } }))
+      .mockResolvedValueOnce(Response.json(rulingsUpstream));
+    const service = new CardLookupService({ ...time, fetcher });
+    await expect(service.rulings(id)).rejects.toMatchObject({ statusCode: 429, retryAfter: 60 });
+    await expect(service.details('Example Commander')).rejects.toMatchObject({ statusCode: 429 });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    time.advance(60000);
+    expect(await service.rulings(id)).toEqual(rulings);
+  });
+
   it('returns full readable commander text and reuses upstream data across artwork and details requests', async () => {
     const fetcher = vi.fn<typeof fetch>(async () => Response.json(upstream));
     const service = new CardLookupService({ ...clock(), fetcher });
@@ -322,7 +427,7 @@ describe('bounded Scryfall lookup', () => {
     });
     expect(fetcher.mock.calls[0][1]).toMatchObject({
       redirect: 'error',
-      headers: { Accept: 'application/json', 'User-Agent': expect.stringContaining('CommandersTable') },
+      headers: { Accept: 'application/json', 'User-Agent': expect.stringContaining('CommandTable') },
     });
     expect(fetcher.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
   });
@@ -441,6 +546,31 @@ describe('bounded Scryfall lookup', () => {
 });
 
 describe('public card API', () => {
+  it('serves rulings without a session and rejects unsafe or missing card IDs before fetching', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json(rulingsUpstream));
+    const { app } = await buildApp({
+      filename: ':memory:',
+      config: readConfig({ PUBLIC_ORIGIN: 'https://table.example' }),
+      cards: new CardLookupService({ ...clock(), fetcher }),
+    });
+    try {
+      for (const invalid of ['', '?id=Example', '?id=https://evil.example', `?id=${id}%2F..`])
+        expect((await app.inject(`/api/cards/rulings${invalid}`)).statusCode).toBe(400);
+      expect(fetcher).not.toHaveBeenCalled();
+      for (let i = 0; i < 26; i++) {
+        const response = await app.inject(`/api/cards/rulings?id=${id}`);
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toEqual(rulings);
+        expect(response.cookies).toHaveLength(0);
+        expect(response.headers['cache-control']).toBe('no-store');
+      }
+      expect((await app.inject(`/api/cards/rulings?id=${id}`)).statusCode).toBe(429);
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    } finally {
+      await app.close();
+    }
+  });
+
   it('works without a guest session, limits query sizes and permits only Scryfall images in CSP', async () => {
     const time = clock();
     const fetcher = vi.fn<typeof fetch>(async (url) =>

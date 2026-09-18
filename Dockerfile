@@ -11,7 +11,7 @@ RUN npm prune --omit=dev
 
 FROM node:24-bookworm-slim AS runtime
 ENV NODE_ENV=production PORT=8080 DATA_DIR=/data ALLOW_INSECURE_HTTP=false
-LABEL org.opencontainers.image.title="Commander's Table" \
+LABEL org.opencontainers.image.title="Command Table" \
       org.opencontainers.image.description="A Magic life counter for one device or shared rooms" \
       org.opencontainers.image.source="https://github.com/Addison16/commanders-table" \
       org.opencontainers.image.licenses="PolyForm-Noncommercial-1.0.0"

@@ -1,57 +1,84 @@
-# Commander's Table
+# Command Table
 
-A mobile-first companion for a physical Magic table. Track one to eight players on **One device**, or create a **Shared room** and invite friends by code, link, or QR. No accounts and no installation required.
+A mobile-first companion for a physical Magic table. Track one to eight players on **One device**, or create a **Shared room** and invite friends by code, link, or QR. Players join in a browser with no accounts or client installation. Hosts run the app with Docker.
 
-Get the [latest release](https://github.com/Addison16/commanders-table/releases/latest) or follow the [Docker setup](#docker) to host your own table.
+Start with the [Docker installation](#docker) below to host on your own computer or server and receive app updates. See the [v0.2.0 release notes](docs/releases/v0.2.0.md) for the latest changes.
 
 **Source-available for noncommercial use:** free to use, modify, and share under the [PolyForm Noncommercial License 1.0.0](LICENSE). Commercial use is not licensed. See [licensing](#publication-and-project-scope) for the scope and earlier releases.
 
 Commander damage belongs to individual commanders, including partners and your own commanders. Life, poison, cast counts, optional turns, timers, dice, and first-player selection share the same game model in both modes. Warnings are reminders; elimination and rules decisions stay with the players.
 
-| Four-player table                                             | Eight-player table                                              |
-| ------------------------------------------------------------- | --------------------------------------------------------------- |
-| ![Actual four-player board](docs/screenshots/four-player.png) | ![Actual eight-player board](docs/screenshots/eight-player.png) |
+| Player-status badges                                                                                    | Eight-player table                                              |
+| ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| ![Four-player board with commander damage, poison and tax badges](docs/screenshots/player-statuses.png) | ![Actual eight-player board](docs/screenshots/eight-player.png) |
 
-## Run locally
+## Docker
 
-Use **Node 24 LTS** (`.nvmrc`) and npm. A compiler toolchain (Python 3, make, and a C++ compiler on Linux) is needed if the native SQLite dependency cannot use a prebuilt binary.
+Use the published image for regular hosting, including on your own hardware. The image includes the app and its runtime; you do not need to install Node.js, npm or a compiler on the host.
+
+### Install
+
+1. Install [Docker with Compose](https://docs.docker.com/compose/install/) on the computer that will host the app. See [hardware and operating systems](docs/deployment.md#hardware-and-operating-systems) for the Docker setup to use on your machine.
+2. Download [compose.yaml](https://github.com/Addison16/commanders-table/releases/latest/download/compose.yaml) and [docker.env.example](https://github.com/Addison16/commanders-table/releases/latest/download/docker.env.example) into the same folder. Copy `docker.env.example` to `.env`. A source checkout uses `.env.docker.example` instead.
+3. Edit `.env`: keep `MTG_IMAGE=ghcr.io/addison16/commanders-table:latest` and set `PUBLIC_ORIGIN` to the exact URL every player will open. For a home network, use your server's address, for example:
+
+   ```dotenv
+   PUBLIC_ORIGIN=http://192.168.1.50:8080
+   ALLOW_INSECURE_HTTP=true
+   MTG_IMAGE=ghcr.io/addison16/commanders-table:latest
+   ```
+
+4. In that folder, start the app:
+
+   ```sh
+   docker compose -p mtg-util -f compose.yaml pull
+   docker compose -p mtg-util -f compose.yaml up -d
+   docker compose -p mtg-util -f compose.yaml ps
+   ```
+
+5. Open your configured address on your phone or computer. For the example above, that is **http://192.168.1.50:8080**. A phone's `localhost` refers to the phone, so use the server's address for shared play.
+
+For reference, the image pull command is:
 
 ```sh
-npm ci
-npm run dev
+docker pull ghcr.io/addison16/commanders-table:latest
 ```
 
-Open **http://localhost:5173**. This starts Vite and the API server together; Vite proxies HTTP and WebSockets to port 8080. Application data goes in ignored `.mtg-data/`. Docker is optional.
+Compose handles the download, configuration and persistent storage together. The image supports `amd64` and `arm64` hosts. A single container serves the frontend and shared-room server on port 8080; server data stays in the named volume `mtg-util_mtg-util-data`.
 
-For phones on the same network, replace the example address with your computer's LAN IP:
+Command Table was previously named Commander's Table. The GitHub repository and Docker image still use `commanders-table`, so existing image references, saves and room memberships continue to work.
+
+For public access or installable/offline phone support, configure HTTPS and `ALLOW_INSECURE_HTTP=false` using the [Docker deployment guide](docs/deployment.md#https-through-a-proxy). Keep the chosen address stable so browser saves and guest sessions stay associated with it.
+
+### Update
+
+Keep the app running in Docker. [Create a verified backup](docs/deployment.md#back-up), then run these commands from the same folder:
 
 ```sh
-PUBLIC_ORIGIN=http://192.168.1.50:5173 ALLOW_INSECURE_HTTP=true npm run dev
+docker compose -p mtg-util -f compose.yaml pull
+docker compose -p mtg-util -f compose.yaml up -d
+docker compose -p mtg-util -f compose.yaml ps
 ```
 
-Open **that exact address** on the computer and every phone. A phone's `localhost` refers to the phone. Allow port 5173 through your local firewall if needed; the development proxy uses API port 8080 internally. Avoid exposing a development server publicly.
+The `latest` tag follows stable releases. Pull downloads the new image; `up -d` recreates the container with it while preserving the mounted data volume. Keep the same Compose project name, `.env`, volume and public origin. Do not use `down -v` when updating: it deletes the server data. Browser-local games remain in their browsers.
 
-To run a production build without Docker:
-
-```sh
-npm run build
-PUBLIC_ORIGIN=http://localhost:8080 ALLOW_INSECURE_HTTP=true npm start
-```
-
-`npm start` serves both the built frontend and backend at port 8080. Optional configuration can be copied from `.env.example` to `.env`; explicit environment variables take precedence. The example `.env` uses **5173 for development**: change `PUBLIC_ORIGIN` to the actual production address before starting or sharing a room.
+Updates are applied when you run these commands or update through your Docker manager; selecting `latest` does not restart containers automatically. Players can tap **Save & update** when the browser update prompt appears. To stay on a fixed release, set `MTG_IMAGE` to a published version such as `ghcr.io/addison16/commanders-table:0.2.0`, or to an image digest. See [backup, restore and updates](docs/deployment.md) for details.
 
 ## Play
 
 - Choose **Quick 4 · 40 life**, **Quick 2 · 20 life**, or customize a table. Tap life controls or hold to repeat. Open a player's name for **Edit player & commanders**, exact values, poison, commander tools, and rotation. **Save changes** saves the player name, color and commander names/artwork together; Undo restores the whole edit. Recorded damage and casts stay intact. Undo groups an uninterrupted hold while each increment is saved immediately.
-- For a phone in the middle of four players, choose **Game menu → Table layout → Shared table** and lay it sideways. The top two counters face the far side, the bottom two face you, and larger +/− areas are easy to reach. This preference stays on your phone; individual seats can still be flipped in their details. Choose **All facing me** to return to the original layout.
+- Small player-card badges appear when a tracker has a value: **CMD MAX** shows the highest damage received from any one commander, **POISON** shows poison counters, and **TAX** shows the additional mana for the next command-zone cast. Partners keep separate **TAX I / TAX II** badges. Poison and commander-damage warnings use your configured thresholds. Open the player's name for the full breakdown and corrections; zero or disabled trackers stay hidden.
+- Phones and tablets automatically use **Shared table** in landscape and **All facing me** in portrait. In a four-player shared table, the top two counters face the far side, the bottom two face you, and larger +/− areas are easy to reach. Rotation preserves the game and each shared guest’s **My seat** selection. **Game menu → Table layout → Follow device rotation** controls this behavior. Choosing a layout or flipping an individual seat turns automatic switching off on that device; turn it back on to follow rotation again. Desktop layouts stay manual.
 - To share, choose **Create room**, choose a table size, and open **Live room** for the code and QR. Friends enter their name, choose their own player name and one or two commanders in the lobby, then request a seat. The host previews their choices and taps **Approve seat**; the names appear on everyone's board without resetting any totals. Commander names can be left for later, and commander fields stay hidden when those tools are off. Pending choices survive refresh and can be revised with **Update request**. Pending guests cannot see the game.
 - Hosts control every seat. Approved guests control their own numerical trackers, player name, and commander labels, and can roll dice. The host may enable **Friends can edit every seat** for numerical adjustments; this does not grant administration or another player's name edits. **My seat** makes a guest's controls larger.
 - **Commander artwork** is optional in setup, joining, and **Edit player & commanders**. Type a name and choose a suggested card, or paste a Scryfall card link and tap **Find artwork**. During play, tap **Save changes** to save the selected art with the rest of the player details; partners share the panel. Artwork follows approved guests, saved games and rematches. **Remove artwork** restores the plain background after saving. Player details show artist credits and a link to the full card. Manual names still work without artwork or internet.
-- To read another player's commander, tap their name/profile and choose **View commander**. The full card appears with readable rules text, mana cost, type and stats. Select either partner or switch faces on a double-faced card. Saved names work even without selected artwork. Viewing is read-only: approved guests can read any player's commander without gaining permission to edit that seat.
+- To read another player's commander, tap their name/profile and choose **View commander**. The full card appears with readable rules text, mana cost, type and stats. Select either partner or switch faces on a double-faced card. **Rulings & notes** loads Scryfall's card-specific rulings with dates and source attribution. Rulings can be retried independently if lookup fails; previously loaded rulings stay available in the current tab for up to one hour, including during an outage. Saved names work even without selected artwork. Viewing is read-only: approved guests can read any player's commander without gaining permission to edit that seat.
+- **Utilities → Group life change** applies one effect to selected opponents. Choose the caster first; all other active players are selected initially, and you can deselect anyone unaffected. The caster cannot be selected for life loss. Enter life lost per opponent and, optionally, the **total** life the caster gains; gain is never guessed or multiplied. Review each before/after total, then apply. One Undo reverses the whole effect. In shared rooms only the host can apply it, even when friends can edit individual seats. If the table changes before saving, review the effect again. If a save is not confirmed, check totals/history and clear the form before starting another effect. Card rules, prevention and replacement effects remain the players' decision; this tool changes life only.
 - **Utilities** rolls polished 3D dice over the life-counter board, with rounded edges/corners, subtle grain and engraved numbers. **Roll for** matches the pearl body to a player’s seat color; local rolls default to the last player saved or selected, and shared guests default to their own seat. Table rolls keep the original ivory finish. Rerolls, percentile pairs and replays keep the selected player. The result face lands centered and upright. Each player gets a matching colored die in **d20 for everyone**; tied leaders roll again before the starting player is revealed. Every approved room member can roll for the table. Results are saved before animation; skipping or reopening a result never rolls again. Sound effects add a dice clatter; **Display & preferences → Test dice sound** previews it.
-- **Turn tracking** is off by default. Enable it in Utilities to show a compact **Next turn** button beside Undo; shared turn controls belong to the host. The game timer is also in Utilities. The former Extra trackers section has been removed.
-- **New game** asks **One phone** or **Multiple phones** again. Tap the **Commander's Table** logo for Home and the last ten unfinished local/shared games. **Resume** reopens the original local game with its names, totals, and history, or reconnects to a shared room using the current guest cookie.
-- **End game** returns everyone to the starting options after the ending is saved. **Recently ended** keeps up to ten recent games available for 24 hours. **Reopen** restores the original totals, damage, commanders and history; the timer stays paused. In shared rooms, only the host can reopen play, and existing seat assignments remain intact. **View final game** lets you inspect a finished game and still use its dice. Starting another game does not remove the recovery entry. Expired recovery entries disappear; existing archives and server retention remain separate.
+- **Turn tracking** is off by default. Enable it in Utilities to show a compact **Next turn** button beside Undo; shared turn controls belong to the host. The game timer is also in Utilities.
+- **New game** asks **One phone** or **Multiple phones** again and opens a fresh setup with default players, colors, commanders and settings. Previous player details do not carry over; choose a preset and starting life for the new table. Tap the **Command Table** logo for Home and the last ten unfinished local/shared games. **Resume** reopens the original local game with its names, totals, and history, or reconnects to a shared room using the current guest cookie.
+- **End game** offers **Rematch**, **End game** or **Cancel**. **Rematch** keeps the current player names, colors, commanders/artwork and shared seats, restores the configured starting life (including custom values), and clears counters, damage, commander casts, markers, elimination, turns, timer, dice and undo history. Names and commanders remain editable in player details. Choosing **End game** returns everyone to the starting options after the ending is saved. **Recently ended** keeps up to ten recent games available for 24 hours. **Reopen** restores the original totals, damage, commanders and history; the timer stays paused. In shared rooms, only the host can reopen play, and existing seat assignments remain intact. **View final game** lets you inspect a finished game and still use its dice. Starting another game does not remove the recovery entry. Expired recovery entries disappear; existing archives and server retention remain separate.
+- **Game menu → Share game recap** creates a PNG with player colors, names, commanders, life totals and game duration. During play it is marked **In progress**. For a final recap, end the game, choose **View final game** from Home, then open the recap. You can optionally select a winner or draw for the image; the app never guesses a winner or changes the saved game. Use **Share image** where supported, or **Download PNG**. The image is generated on your device with no external artwork requests.
 - **Game menu** also offers history, settings, export/import, rematch, and archived local games. A rematch keeps room assignments and seat identities. A new shared setup creates a new room; previous unfinished rooms stay resumable. Local archives and the unfinished-game list are each bounded to ten stored entries.
 
 If a shared connection drops, new edits pause. Reconnecting accounts for already-submitted actions before enabling controls. **Continue a copy on this device** forks the last confirmed game into independent local play; it never merges back into the room.
@@ -71,45 +98,54 @@ Losing a guest cookie means requesting host approval for a replacement seat. A l
 
 If browser storage is blocked, local play continues in memory with a visible warning. Export before leaving. Unreadable or future-version saves are preserved for recovery rather than silently reset.
 
-## Docker
-
-Pull the latest published image:
-
-```sh
-docker pull ghcr.io/addison16/commanders-table:latest
-```
-
-Build and start locally:
-
-```sh
-PUBLIC_ORIGIN=http://localhost:8080 ALLOW_INSECURE_HTTP=true \
-  docker compose -p mtg-util -f compose.local.yaml up -d --build
-```
-
-For LAN play, set `PUBLIC_ORIGIN` to the server's LAN address and use that address on every device. The container runs as non-root, serves port 8080, and stores SQLite plus its WAL sidecars in the named volume `mtg-util_mtg-util-data`. Keep the same Compose project name and volume when updating. Use local disk storage for this single-instance database.
-
-Release images use **`ghcr.io/addison16/commanders-table`**, with `latest` and `stable` following stable releases and version tags such as `0.1.5` for a fixed release. Images support standard 64-bit PCs/servers (`amd64`) and 64-bit ARM machines (`arm64`). A tag becomes available after its release workflow succeeds.
-
-Download **compose.yaml** and **docker.env.example** from [Releases](https://github.com/Addison16/commanders-table/releases). Put them in a folder, copy `docker.env.example` to `.env`, and set `PUBLIC_ORIGIN` to the exact address your phones will open—for example, `http://192.168.1.50:8080`. The source checkout keeps this example at `.env.docker.example`. Then run:
-
-```sh
-docker compose -p mtg-util -f compose.yaml pull
-docker compose -p mtg-util -f compose.yaml up -d
-```
-
-To update, back up first, then run those same two commands. Existing games remain in the named volume. Selecting `latest` makes new releases available to pull; it does not restart your running container automatically. Docker managers that check image tags can detect the updates. Set `MTG_IMAGE=ghcr.io/addison16/commanders-table:0.1.5` in `.env` to stay on a particular version after it is published.
-
-For public hosting, use HTTPS, `ALLOW_INSECURE_HTTP=false`, and a reverse proxy that supports WebSockets. See [deployment](docs/deployment.md) for configuration, Caddy, updates, verified backup/restore commands, and the publication workflow.
-
 ## Offline and installation
 
 One-device play works without a guest session or network connection. A production build can reopen offline after its service worker has installed through HTTPS or localhost. Plain HTTP on a LAN supports core play and saving, but is not a secure context for offline installation or wake lock.
 
 Looking up new artwork requires internet access. Selected card metadata is saved with the game. On an installed production app, viewed Scryfall art crops are cached separately (up to 64 images for 30 days); uncached or unavailable artwork falls back to the normal panel while counters keep working.
 
-Commander card lookups also require internet access. Recently read card text can reopen from the current tab's memory for up to one hour, including during a connection outage. Reloading clears this text cache; full card images are not guaranteed to work offline. If an image cannot load, available card text remains readable.
+Commander card and ruling lookups also require internet access. Recently read card text and rulings can reopen from the current tab's memory for up to one hour, including during a connection outage. Reloading clears those text caches; full card images are not guaranteed to work offline. If an image cannot load, available card text remains readable. Group life changes in one-device games and recap PNG exports work offline after the app has loaded.
 
 On iPhone Safari, use **Share → Add to Home Screen**. On Android, use the browser's install/home-screen menu. Installed apps and ordinary browser tabs can have separate storage. Settings explain optional fullscreen, vibration, sound, and keep-awake behavior. System reduced motion always takes priority. Updates wait for **Save & update**, then confirmation; they do not force a reload during play.
+
+## Development
+
+Use **Node 24 LTS** (`.nvmrc`) and npm. A compiler toolchain (Python 3, make, and a C++ compiler on Linux) is needed if the native SQLite dependency cannot use a prebuilt binary.
+
+```sh
+npm ci
+npm run dev
+```
+
+Open **http://localhost:5173**. This starts Vite and the API server together; Vite proxies HTTP and WebSockets to port 8080. Development data goes in ignored `.mtg-data/`. Use the published Docker image above for regular hosting and updates.
+
+For phones on the same network, replace the example address with your computer's LAN IP:
+
+```sh
+PUBLIC_ORIGIN=http://192.168.1.50:5173 ALLOW_INSECURE_HTTP=true npm run dev
+```
+
+Open **that exact address** on the computer and every phone. A phone's `localhost` refers to the phone. Allow port 5173 through your local firewall if needed; the development proxy uses API port 8080 internally. Avoid exposing a development server publicly.
+
+For testing a production build directly during development:
+
+```sh
+npm run build
+PUBLIC_ORIGIN=http://localhost:8080 ALLOW_INSECURE_HTTP=true npm start
+```
+
+`npm start` serves both the built frontend and backend at port 8080. Optional configuration can be copied from `.env.example` to `.env`; explicit environment variables take precedence. The example `.env` uses **5173 for development**: change `PUBLIC_ORIGIN` to the actual production address before starting or sharing a room.
+
+### Build a development image
+
+Contributors can test source changes in Docker too. From a source checkout, run:
+
+```sh
+PUBLIC_ORIGIN=http://localhost:8080 ALLOW_INSECURE_HTTP=true \
+  docker compose -p mtg-util -f compose.local.yaml up -d --build
+```
+
+This builds your checkout rather than downloading a release. For regular hosting and image updates, use `compose.yaml` and the published `latest` image. Both examples use the same project and volume; run only one at a time. Details are in the [local image guide](docs/deployment.md#start-a-locally-built-image).
 
 ## Checks
 

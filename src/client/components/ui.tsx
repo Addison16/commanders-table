@@ -1,10 +1,16 @@
-import { type ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { create } from 'zustand';
 
 const paths: Record<string, ReactNode> = {
   plus: <path d="M12 5v14M5 12h14" />,
   minus: <path d="M5 12h14" />,
+  warning: (
+    <>
+      <path d="M12 3 2 21h20Z M12 9v5" />
+      <path d="M12 17h.01" strokeWidth="2.5" />
+    </>
+  ),
   card: (
     <>
       <rect x="5" y="2" width="14" height="20" rx="2" />
@@ -45,6 +51,24 @@ const paths: Record<string, ReactNode> = {
     <>
       <path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z" />
       <path d="m8 12 3 3 5-6" />
+    </>
+  ),
+  'commander-damage': (
+    <>
+      <path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z" />
+      <path d="m14 7-4 5h4l-4 5" />
+    </>
+  ),
+  poison: (
+    <>
+      <path d="M12 3C9 7 5 11 5 15a7 7 0 0 0 14 0c0-4-4-8-7-12Z" />
+      <path d="M9 15a3 3 0 0 0 3 3" />
+    </>
+  ),
+  tax: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m12 6 2 4 4 2-4 2-2 4-2-4-4-2 4-2Z" />
     </>
   ),
   crown: (
@@ -143,6 +167,11 @@ export function Sheet({
         <Dialog.Overlay className="sheet-overlay" />
         <Dialog.Content
           className={`sheet ${wide ? 'wide' : ''}`}
+          onInteractOutside={(event) => {
+            // Dismissing a save error must not also dismiss the editor and its draft.
+            const target = event.detail.originalEvent.target;
+            if (target instanceof Element && target.closest('.error-toast')) event.preventDefault();
+          }}
           onCloseAutoFocus={(e) => {
             const target = document.querySelector<HTMLButtonElement>('[data-sheet-return]');
             if (target) {
@@ -169,37 +198,70 @@ export function Sheet({
     </Dialog.Root>
   );
 }
-type Confirmation = { title: string; message: string; resolve: (yes: boolean) => void };
+type Choice = { value: string; label: string; primary?: boolean };
+type Confirmation = {
+  title: string;
+  message: string;
+  choices: Choice[];
+  resolve: (choice?: string) => void;
+};
 const useConfirmation = create<{ value?: Confirmation }>(() => ({}));
-export function ask(title: string, message: string) {
-  return new Promise<boolean>((resolve) => useConfirmation.setState({ value: { title, message, resolve } }));
+export function choose(title: string, message: string, choices: Choice[]) {
+  return new Promise<string | undefined>((resolve) =>
+    useConfirmation.setState({ value: { title, message, choices, resolve } }),
+  );
+}
+export async function ask(title: string, message: string) {
+  return (
+    (await choose(title, message, [{ value: 'confirm', label: 'Confirm', primary: true }])) === 'confirm'
+  );
 }
 export function ConfirmationDialog() {
   const value = useConfirmation((s) => s.value);
+  const cancel = useRef<HTMLButtonElement>(null);
   if (!value) return null;
-  const done = (yes: boolean) => {
-    value.resolve(yes);
+  const done = (choice?: string) => {
+    value.resolve(choice);
     useConfirmation.setState({ value: undefined });
   };
   return (
     <Dialog.Root
       open
       onOpenChange={(open) => {
-        if (!open) done(false);
+        if (!open) done();
       }}
     >
       <Dialog.Portal>
         <Dialog.Overlay className="sheet-overlay confirmation" />
-        <Dialog.Content className="confirm-dialog">
+        <Dialog.Content
+          className="confirm-dialog"
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            cancel.current?.focus();
+          }}
+        >
           <Dialog.Title>{value.title}</Dialog.Title>
           <Dialog.Description>{value.message}</Dialog.Description>
-          <div className="button-row">
-            <button className="secondary" onClick={() => done(false)}>
-              Cancel
-            </button>
-            <button className="primary" onClick={() => done(true)}>
-              Confirm
-            </button>
+          <div className={value.choices.length > 1 ? 'confirmation-choices' : 'button-row'}>
+            {value.choices.length === 1 && (
+              <button ref={cancel} className="secondary" onClick={() => done()}>
+                Cancel
+              </button>
+            )}
+            {value.choices.map((choice) => (
+              <button
+                key={choice.value}
+                className={choice.primary ? 'primary' : 'secondary'}
+                onClick={() => done(choice.value)}
+              >
+                {choice.label}
+              </button>
+            ))}
+            {value.choices.length > 1 && (
+              <button ref={cancel} className="text-button" onClick={() => done()}>
+                Cancel
+              </button>
+            )}
           </div>
         </Dialog.Content>
       </Dialog.Portal>

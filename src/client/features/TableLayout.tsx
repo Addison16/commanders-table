@@ -1,5 +1,6 @@
 import { useApp, updateProfile } from '../app/store.js';
-import { Sheet } from '../components/ui.js';
+import { Sheet, Toggle } from '../components/ui.js';
+import { useTableLayout } from './useTableLayout.js';
 import '../styles/table-layout.css';
 
 export function facesAcross(layout: 'upright' | 'shared', index: number, count: number) {
@@ -7,9 +8,23 @@ export function facesAcross(layout: 'upright' | 'shared', index: number, count: 
 }
 
 export function TableLayoutOptions() {
-  const layout = useApp((s) => s.profile.tableLayout);
+  const { layout } = useTableLayout();
+  const followRotation = useApp((s) => s.profile.autoTableLayout);
   return (
     <>
+      <Toggle
+        checked={followRotation}
+        onChange={(autoTableLayout) => {
+          dispatchEvent(new Event('mtg-cancel-input'));
+          void updateProfile({ autoTableLayout, tableLayout: layout, rotations: {} });
+        }}
+      >
+        Follow device rotation
+      </Toggle>
+      <p className="hint">
+        On phones and tablets, landscape uses Shared table and portrait uses All facing me. Choose a layout
+        below to keep it fixed.
+      </p>
       <div className="layout-options" role="group" aria-label="Counter layout">
         {(['upright', 'shared'] as const).map((option) => (
           <button
@@ -18,7 +33,12 @@ export function TableLayoutOptions() {
             aria-pressed={layout === option}
             onClick={() => {
               dispatchEvent(new Event('mtg-cancel-input'));
-              void updateProfile({ tableLayout: option, rotations: {}, view: 'table' });
+              void updateProfile({
+                tableLayout: option,
+                autoTableLayout: false,
+                rotations: {},
+                view: 'table',
+              });
             }}
           >
             <span className={`layout-preview ${option}`} aria-hidden="true">

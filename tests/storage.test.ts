@@ -154,12 +154,14 @@ describe('local transactions and recovery', () => {
     const profile = await a.profile();
     const legacy: Partial<typeof profile> = { ...profile, rotations: { seat: true } };
     delete legacy.tableLayout;
+    delete legacy.autoTableLayout;
     await a.put('profile', legacy);
-    expect(await a.profile()).toEqual({ ...legacy, tableLayout: 'upright' });
-    await a.put('profile', { ...legacy, tableLayout: 'shared' });
+    expect(await a.profile()).toEqual({ ...legacy, tableLayout: 'upright', autoTableLayout: true });
+    await a.put('profile', { ...legacy, tableLayout: 'shared', autoTableLayout: false });
     const reopened = new Repository('b', a.databaseName);
     await reopened.open();
     expect((await reopened.profile()).tableLayout).toBe('shared');
+    expect((await reopened.profile()).autoTableLayout).toBe(false);
     expect((await reopened.profile()).installationId).toBe(profile.installationId);
   });
   it('resumes the original unfinished game with its latest life, names, damage and history', async () => {

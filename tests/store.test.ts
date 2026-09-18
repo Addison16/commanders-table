@@ -118,6 +118,73 @@ function expectLocal(game: Game) {
   });
 }
 
+describe('reviewed group life changes', () => {
+  async function effect() {
+    await store.startLocal(defaultSetup(4));
+    const original = store.useApp.getState().confirmed!;
+    const command: Extract<Command, { type: 'groupLife' }> = {
+      type: 'groupLife',
+      casterId: original.order[1],
+      targetIds: original.order.filter((id) => id !== original.order[1]),
+      loss: 3,
+    };
+    const review = { gameId: original.id, revision: original.revision, mode: 'local' as const };
+    return { original, command, review };
+  }
+
+  it('waits for durable storage, protects the caster and rejects a duplicate submission of the same review', async () => {
+    const { original, command, review } = await effect();
+    const actualCommit = store.repository.commit.bind(store.repository);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const commit = vi.spyOn(store.repository, 'commit').mockImplementationOnce(async (...args) => {
+      await gate;
+      await actualCommit(...args);
+    });
+    const first = store.saveGroupLife(command, review);
+    await vi.waitFor(() => expect(commit).toHaveBeenCalledOnce());
+    const duplicate = store.saveGroupLife(command, review);
+    expect(store.useApp.getState().confirmed).toEqual(original);
+    release();
+    expect(await first).toBe(true);
+    expect(await duplicate).toBe(false);
+    const saved = (await (await reopenedStorage()).active()).game!;
+    expect(saved.players[command.casterId].life).toBe(40);
+    for (const id of command.targetIds) expect(saved.players[id].life).toBe(37);
+    expect(saved.undo).toHaveLength(1);
+    await store.act({ type: 'undo' });
+    expect(store.useApp.getState().confirmed!.players).toEqual(original.players);
+  });
+
+  it('keeps every total intact after storage failure and permits a confirmed retry', async () => {
+    const { original, command, review } = await effect();
+    vi.spyOn(store.repository, 'commit').mockRejectedValueOnce(
+      new DOMException('Storage is full', 'QuotaExceededError'),
+    );
+    expect(await store.saveGroupLife({ ...command, gain: 7 }, review)).toBe(false);
+    expect(store.useApp.getState().confirmed).toEqual(original);
+    expect((await store.repository.active()).game).toEqual(original);
+    expect(await store.saveGroupLife({ ...command, gain: 7 }, review)).toBe(true);
+    expect(store.useApp.getState().confirmed!.players[command.casterId].life).toBe(47);
+  });
+
+  it('rejects an old preview after a total changes or a different game opens', async () => {
+    const { original, command, review } = await effect();
+    await store.act({ type: 'adjust', playerId: command.targetIds[0], field: 'life', delta: -1 });
+    const current = store.useApp.getState().confirmed;
+    expect(await store.saveGroupLife(command, review)).toBe(false);
+    expect(store.useApp.getState().confirmed).toEqual(current);
+    await store.startLocal(defaultSetup(4));
+    expect(await store.saveGroupLife(command, review)).toBe(false);
+    expect(store.useApp.getState().confirmed!.id).not.toBe(original.id);
+    expect(
+      Object.values(store.useApp.getState().confirmed!.players).every((player) => player.life === 40),
+    ).toBe(true);
+  });
+});
+
 describe('local game transitions and recovery', () => {
   it('confirms a unified player save only after its durable commit finishes', async () => {
     await store.startLocal(defaultSetup(2));

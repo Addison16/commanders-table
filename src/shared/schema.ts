@@ -179,6 +179,22 @@ export type Game = z.infer<typeof gameSchema>;
 export const commandSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('adjust'), playerId: idSchema, field: counterKey, delta: life }),
   z.strictObject({ type: z.literal('set'), playerId: idSchema, field: counterKey, value: life }),
+  z
+    .strictObject({
+      type: z.literal('groupLife'),
+      casterId: idSchema,
+      targetIds: z.array(idSchema).min(1).max(7),
+      loss: int.min(1),
+      gain: int.optional(),
+    })
+    .refine((command) => new Set(command.targetIds).size === command.targetIds.length, {
+      message: 'Choose each opponent only once.',
+      path: ['targetIds'],
+    })
+    .refine((command) => !command.targetIds.includes(command.casterId), {
+      message: 'The caster cannot lose life in an opponents-only change.',
+      path: ['targetIds'],
+    }),
   z.strictObject({
     type: z.literal('damage'),
     playerId: idSchema,

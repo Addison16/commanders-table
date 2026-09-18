@@ -100,4 +100,53 @@
     font-size: 13px;
     margin-bottom: 12px;
   }
+  .commander-rulings {
+    margin-top: 18px;
+    border-top: 1px solid #d6b66a30;
+    padding-top: 12px;
+    overflow-wrap: anywhere;
+  }
+  .commander-rulings-toggle {
+    justify-content: space-between;
+    width: 100%;
+    gap: 12px;
+    min-height: 48px;
+    text-align: left;
+    background: #202a3a;
+    border-color: #d6b66a55;
+  }
+  .commander-rulings-toggle[aria-expanded='true'] {
+    border-color: var(--gold);
+  }
+  .commander-rulings-toggle small {
+    color: var(--muted);
+    font-weight: 400;
+  }
+  .commander-rulings > div {
+    padding-top: 14px;
+    font-size: 14px;
+  }
+  .commander-rulings-list {
+    display: grid;
+    gap: 16px;
+    list-style: none;
+    margin: 0 0 14px;
+    padding: 0;
+  }
+  .commander-rulings-list li + li {
+    border-top: 1px solid #ffffff14;
+    padding-top: 14px;
+  }
+  .commander-ruling-source {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .commander-ruling-text {
+    margin-top: 6px;
+    white-space: pre-wrap;
+    line-height: 1.6;
+  }
 }

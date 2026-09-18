@@ -1,0 +1,133 @@
+@layer components {
+  .player-statuses {
+    position: relative;
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    padding-top: 6px;
+  }
+  .status-chip {
+    --status-ink: #d5c49d;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 25px;
+    padding: 3px 7px;
+    border: 1px solid color-mix(in srgb, var(--status-ink) 24%, transparent);
+    border-radius: 20px;
+    background: linear-gradient(155deg, #242933f5, #10151df5);
+    box-shadow:
+      inset 0 1px 0 #ffffff09,
+      0 2px 5px #0002;
+    color: var(--status-ink);
+    white-space: nowrap;
+    line-height: 1;
+  }
+  .status-chip[data-status='poison'] {
+    --status-ink: #b6d2bc;
+  }
+  .status-chip[data-status='tax'] {
+    --status-ink: #c2c9de;
+  }
+  .status-chip.is-warning {
+    --status-ink: #ffd0a3;
+    border-color: #e6a267a0;
+    background: linear-gradient(155deg, #433025fa, #251c19fa);
+  }
+  .status-chip > svg {
+    flex-shrink: 0;
+  }
+  .status-chip-label {
+    font-size: 7px;
+    font-weight: 600;
+    letter-spacing: 0.45px;
+  }
+  .status-chip-value {
+    font-size: 13px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.2px;
+  }
+}
+@layer responsive {
+  /* Let dense tables grow and scroll instead of clipping counters or tap targets. */
+  .board[class]:has(.player-statuses) {
+    grid-template-rows: none;
+    grid-auto-rows: minmax(min-content, 1fr);
+  }
+  .tile-content:has(.player-statuses) {
+    height: auto;
+    min-height: 100%;
+  }
+  .tile-content:has(.player-statuses) .tile-foot:not(.has-status) {
+    display: none;
+  }
+  .tile-content:has(.player-statuses) .life-caption {
+    display: none;
+  }
+  .tile-content:has(.player-statuses) .life-delta {
+    top: 0;
+    bottom: auto;
+    left: auto;
+    right: 0;
+    padding: 2px;
+    border-radius: 3px;
+    background: #111721;
+    font-size: 10px;
+  }
+  .tile-content:has(.player-statuses) .life-delta:empty {
+    display: none;
+  }
+  @media (max-width: 359px) {
+    .status-chip {
+      gap: 3px;
+      padding: 3px 5px;
+    }
+  }
+  @media (orientation: landscape) {
+    .shared-table .player-statuses {
+      padding-top: 2px;
+    }
+    .shared-table .status-chip {
+      min-height: 22px;
+      padding: 2px 6px;
+    }
+  }
+  @media (orientation: landscape) and (max-height: 350px) {
+    .shared-table .tile-content:has(.player-statuses) {
+      padding-top: 0;
+      padding-bottom: 0;
+    }
+    .shared-table .tile-content:has(.player-statuses) .life-controls .hold {
+      min-height: 44px;
+    }
+    .shared-table .tile-content:has(.player-statuses) :is(.digits-1, .digits-2) .life-total {
+      font-size: 38px;
+    }
+    .shared-table .player-statuses {
+      padding-top: 0;
+      gap: 3px;
+    }
+    .shared-table .status-chip {
+      min-height: 18px;
+      gap: 3px;
+      padding: 2px 4px;
+    }
+    .shared-table .status-chip-label {
+      letter-spacing: 0.15px;
+    }
+    .shared-table .status-chip[data-status='tax'] > svg {
+      display: none;
+    }
+    .shared-table .status-chip > svg {
+      width: 11px;
+      height: 11px;
+    }
+    .shared-table .status-chip-value {
+      font-size: 11px;
+    }
+  }
+}

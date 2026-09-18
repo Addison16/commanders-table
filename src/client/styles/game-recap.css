@@ -1,0 +1,51 @@
+@layer components {
+  .recap-preview {
+    margin: 18px 0;
+    overflow: hidden;
+    border: 1px solid #d6b66a35;
+    border-radius: 14px;
+    background: #090d14;
+  }
+  .recap-preview img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .recap-preview > p {
+    padding: 42px 20px;
+    text-align: center;
+    color: var(--muted);
+  }
+  .recap-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .recap-actions > button {
+    flex: 1 1 160px;
+  }
+  .recap-error {
+    color: #f0aa9e;
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+  .recap-error p {
+    margin-bottom: 10px;
+  }
+  .recap-text {
+    margin-top: 18px;
+    overflow-wrap: anywhere;
+  }
+  .recap-text ul {
+    padding-left: 20px;
+  }
+  .recap-text li {
+    margin-top: 12px;
+    font-size: 13px;
+  }
+  .recap-text li span {
+    display: block;
+    margin-top: 5px;
+    color: var(--muted);
+  }
+}

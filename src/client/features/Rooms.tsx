@@ -488,7 +488,7 @@ export function RoomSheet({ onClose }: { onClose: () => void }) {
                 className="secondary full"
                 key={game.id}
                 onClick={() =>
-                  downloadText(gameExport(game), `commanders-table-match-${game.id.slice(0, 8)}.json`)
+                  downloadText(gameExport(game), `command-table-match-${game.id.slice(0, 8)}.json`)
                 }
               >
                 <Icon name="download" />

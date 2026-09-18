@@ -1,0 +1,89 @@
+@layer components {
+  .group-life {
+    display: grid;
+    gap: 16px;
+  }
+  .group-life .field {
+    margin: 0;
+  }
+  .group-life-protection {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #b4d6bf;
+    font-size: 13px;
+  }
+  .group-life-targets {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+    display: grid;
+    gap: 8px;
+  }
+  .group-life-targets legend {
+    padding: 0 0 10px;
+    font-size: 14px;
+  }
+  .group-life-target {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    cursor: pointer;
+  }
+  .group-life-target:has(input:checked) {
+    border-color: var(--player);
+    background: color-mix(in srgb, var(--player) 8%, transparent);
+  }
+  .group-life-target input {
+    width: 22px;
+    height: 22px;
+    min-height: 22px;
+    flex-shrink: 0;
+    accent-color: var(--player);
+  }
+  .group-life-target span,
+  .group-life-preview li span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .group-life-target small,
+  .group-life-preview small {
+    display: block;
+    margin-top: 3px;
+  }
+  .group-life-preview {
+    padding: 16px;
+    border: 1px solid #d6b66a40;
+    border-radius: 14px;
+    background: #d6b66a06;
+  }
+  .group-life-preview h3 {
+    font-size: 15px;
+  }
+  .group-life-preview ul {
+    list-style: none;
+    padding: 0;
+    margin: 12px 0 0;
+  }
+  .group-life-preview li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 14px;
+  }
+  .group-life-preview strong {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .group-life-caster strong {
+    color: #b4d6bf;
+  }
+}

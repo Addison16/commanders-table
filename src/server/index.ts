@@ -7,7 +7,7 @@ try {
   const config = readConfig();
   const { app } = await buildApp({ config });
   await app.listen({ port: config.port, host: '0.0.0.0' });
-  console.info(`Commander's Table listening on port ${config.port}; public origin ${config.publicOrigin}`);
+  console.info(`Command Table listening on port ${config.port}; public origin ${config.publicOrigin}`);
   for (const signal of ['SIGINT', 'SIGTERM'] as const)
     process.once(signal, () => {
       void app.close().then(() => process.exit(0));

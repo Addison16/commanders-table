@@ -73,6 +73,77 @@ function fixture(filename = ':memory:', count = 4) {
   };
 }
 describe('authoritative room transactions', () => {
+  it('keeps opponents-only life changes host-only, including rooms where everyone can edit totals', () => {
+    const f = fixture();
+    const command: Extract<Command, { type: 'groupLife' }> = {
+      type: 'groupLife',
+      casterId: f.room.seats[0].id,
+      targetIds: f.room.seats.slice(1).map((seat) => seat.id),
+      loss: 4,
+      gain: 6,
+    };
+    expect(f.run(f.guest.hash, command).receipt.ok).toBe(false);
+    f.approve();
+    const before = f.svc.view(f.room.id, f.host.hash).game;
+    expect(f.run(f.guest.hash, command).receipt.ok).toBe(false);
+    expect(f.svc.view(f.room.id, f.host.hash).game).toEqual(before);
+    f.run(f.host.hash, { type: 'policy', everyoneEdits: true });
+    const sharedEditing = f.svc.view(f.room.id, f.host.hash).game;
+    expect(f.run(f.guest.hash, command).receipt.ok).toBe(false);
+    expect(f.svc.view(f.room.id, f.host.hash).game).toEqual(sharedEditing);
+    expect(f.run(f.host.hash, command).receipt.ok).toBe(true);
+  });
+  it('commits a life batch once with a single host undo and unchanged non-life stats', () => {
+    const f = fixture();
+    f.approve();
+    const before = f.svc.view(f.room.id, f.host.hash).game!;
+    const [casterId, first, second, untouched] = before.order;
+    const envelope = f.envelope(f.host.hash, {
+      type: 'groupLife',
+      casterId,
+      targetIds: [first, second],
+      loss: 5,
+      gain: 7,
+    });
+    const response = f.svc.execute(f.host.hash, envelope);
+    expect(response.receipt.ok).toBe(true);
+    const changed = response.view!.game!;
+    expect(changed.players[casterId].life).toBe(47);
+    expect(changed.players[first].life).toBe(35);
+    expect(changed.players[second].life).toBe(35);
+    expect(changed.players[untouched]).toEqual(before.players[untouched]);
+    expect(changed.commanders).toEqual(before.commanders);
+    expect(changed.damageReceived).toEqual(before.damageReceived);
+    expect(changed.history).toHaveLength(before.history.length + 1);
+    expect(changed.undo).toHaveLength(before.undo.length + 1);
+    expect(f.svc.execute(f.host.hash, envelope).receipt).toEqual(response.receipt);
+    expect(f.svc.view(f.room.id, f.host.hash).game).toEqual(changed);
+    expect(f.run(f.guest.hash, { type: 'undo' }).receipt.ok).toBe(false);
+    const undone = f.run(f.host.hash, { type: 'undo' });
+    expect(undone.receipt.ok).toBe(true);
+    expect(undone.view!.game!.players).toEqual(before.players);
+  });
+  it('rejects stale, forged and out-of-bounds life batches without partial room changes', () => {
+    const f = fixture();
+    const [casterId, first, second] = f.room.seats.map((seat) => seat.id);
+    const command: Extract<Command, { type: 'groupLife' }> = {
+      type: 'groupLife',
+      casterId,
+      targetIds: [first, second],
+      loss: 5,
+    };
+    const stale = f.envelope(f.host.hash, command);
+    f.run(f.host.hash, { type: 'adjust', playerId: casterId, field: 'life', delta: 1 });
+    const afterTap = f.svc.view(f.room.id, f.host.hash).game;
+    expect(f.svc.execute(f.host.hash, stale).receipt.ok).toBe(false);
+    expect(f.svc.view(f.room.id, f.host.hash).game).toEqual(afterTap);
+    expect(() => f.run(f.host.hash, { ...command, targetIds: [first, casterId] })).toThrow();
+    expect(f.svc.view(f.room.id, f.host.hash).game).toEqual(afterTap);
+    f.run(f.host.hash, { type: 'set', playerId: second, field: 'life', value: -999_998 });
+    const beforeBoundary = f.svc.view(f.room.id, f.host.hash).game;
+    expect(f.run(f.host.hash, command).receipt.ok).toBe(false);
+    expect(f.svc.view(f.room.id, f.host.hash).game).toEqual(beforeBoundary);
+  });
   it('commits a player profile once, lets its owner undo it, and limits edits to the assigned seat or host', () => {
     const f = fixture();
     const playerId = f.room.seats[0].id;

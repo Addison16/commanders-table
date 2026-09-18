@@ -11,7 +11,15 @@ const formatTime = (ms: number) => {
     .map((n) => String(n).padStart(2, '0'))
     .join(':');
 };
-export function Utilities({ onClose, onReplay }: { onClose: () => void; onReplay: (roll: Roll) => void }) {
+export function Utilities({
+  onClose,
+  onReplay,
+  onGroupLife,
+}: {
+  onClose: () => void;
+  onReplay: (roll: Roll) => void;
+  onGroupLife: () => void;
+}) {
   const game = useApp((s) => s.game)!,
     connected = useApp((s) => s.connected),
     mode = useApp((s) => s.mode),
@@ -127,6 +135,19 @@ export function Utilities({ onClose, onReplay }: { onClose: () => void; onReplay
           Flip a coin
         </button>
         {game.status === 'ended' && <p className="hint">This game has ended. You can still roll dice.</p>}
+      </section>
+      <section className="detail-section">
+        <h3>
+          <Icon name="people" />
+          Group life change
+        </h3>
+        <p className="hint">Apply life loss to selected opponents, with optional life gain for the caster.</p>
+        <button className="secondary full" disabled={!host || pending > 0} onClick={onGroupLife}>
+          Group life change
+        </button>
+        {mode === 'room' && !isHost() && (
+          <p className="hint">The host applies group effects for the table.</p>
+        )}
       </section>
       <section className="detail-section">
         <h3>

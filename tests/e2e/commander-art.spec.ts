@@ -4,6 +4,11 @@ import AxeBuilder from '@axe-core/playwright';
 import type { CommanderCard } from '../../src/shared/cards.js';
 import type { RoomView } from '../../src/shared/schema.js';
 
+// These fixtures intentionally replace Scryfall images. A production service
+// worker can bypass browser route mocks after reload and fetch the fake IDs.
+// Offline shell/cache behavior has separate production PWA coverage.
+test.use({ serviceWorkers: 'block' });
+
 const cards: CommanderCard[] = [
   {
     id: '12345678-1234-4234-8234-123456789abc',
@@ -184,6 +189,7 @@ test('setup accepts card links and partner artwork while shared-table counters r
   await expect(page.getByTestId('life-0')).toHaveText('39');
   await expect(page.getByTestId('life-1')).toHaveText('40');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await expect(page.getByText('Saved here', { exact: true })).toBeVisible();
   await page.reload();
   await expect(images).toHaveCount(2);
   await expect(page.locator('.board')).toHaveAttribute('data-layout', 'shared');
@@ -196,7 +202,10 @@ test('joining players choose artwork before approval and share it with the host 
   browser,
 }) => {
   await mockCards(context);
-  const guestContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const guestContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    serviceWorkers: 'block',
+  });
   await mockCards(guestContext);
   const guest = await guestContext.newPage();
   try {

@@ -19,7 +19,7 @@ Vite bundles the font subsets into the app shell, and the license notices ship u
 
 Beginning with v0.1.2, the application, documentation, and original project assets use [PolyForm Noncommercial License 1.0.0](../LICENSE). Noncommercial use, modification, self-hosting, and sharing are permitted under its terms and required notice; commercial use is not licensed. This is source-available licensing, not OSI open source. The previously published [v0.1.0 remains MIT](https://github.com/Addison16/commanders-table/blob/v0.1.0/LICENSE) and [v0.1.1 remains MIT with Commons Clause](https://github.com/Addison16/commanders-table/blob/v0.1.1/LICENSE); their original permissions are not revoked. Third-party fonts and dependencies keep their separate licenses.
 
-`Commander's Table` is an independent fan utility, without endorsement by Wizards of the Coast.
+`Command Table` is an independent fan utility, without endorsement by Wizards of the Coast.
 
 ## Optional commander artwork
 
@@ -27,4 +27,4 @@ Scryfall provides card metadata and its dedicated `art_crop` images. The app sea
 
 The production service worker keeps a separate, bounded cache for viewed public art images; private game APIs are never cached. New searches and uncached images require internet access. Missing art leaves the normal counter usable. See [Scryfall API usage and attribution](https://scryfall.com/docs/api), [image formats](https://scryfall.com/docs/api/images), and [rate limits](https://scryfall.com/docs/api/rate-limits).
 
-Commander's Table is unofficial Fan Content permitted under the [Fan Content Policy](https://company.wizards.com/fancontentpolicy). Not approved or endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. © Wizards of the Coast. This notice also appears in display/browser settings, with per-card credits in the app.
+Command Table is unofficial Fan Content permitted under the [Fan Content Policy](https://company.wizards.com/fancontentpolicy). Not approved or endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. © Wizards of the Coast. This notice also appears in display/browser settings, with per-card credits in the app.

@@ -177,7 +177,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
         </p>
       </section>
       <p className="hint">
-        Commander's Table is unofficial Fan Content permitted under the{' '}
+        Command Table is unofficial Fan Content permitted under the{' '}
         <a href="https://company.wizards.com/fancontentpolicy" target="_blank" rel="noreferrer">
           Fan Content Policy
         </a>

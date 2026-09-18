@@ -153,6 +153,8 @@ test('mobile layouts retain reachable controls at every target size', async ({ p
   }
   if (info.project.name === 'chromium-phone') {
     await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator('.board')).toHaveAttribute('data-layout', 'upright');
+    await expect(page.locator('.tile-content').first()).toHaveCSS('transform', 'none');
     await page.screenshot({ path: 'docs/screenshots/eight-player.png' });
   }
 });

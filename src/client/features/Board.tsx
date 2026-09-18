@@ -1,12 +1,14 @@
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { warnings } from '../../shared/game.js';
 import { useApp, act, updateProfile } from '../app/store.js';
 import { Icon, Sigil } from '../components/ui.js';
 import { HoldButton } from '../components/HoldButton.js';
 import { facesAcross } from './TableLayout.js';
+import { useTableLayout } from './useTableLayout.js';
 import { CommanderBackdrop } from '../components/CommanderArtwork.js';
 import type { CommanderCard } from '../../shared/cards.js';
+import { playerStatuses, type PlayerStatus } from './playerStatuses.js';
+import '../styles/player-statuses.css';
 
 const PlayerTile = memo(function PlayerTile({
   id,
@@ -14,6 +16,7 @@ const PlayerTile = memo(function PlayerTile({
   openPlayer,
   myView,
   autoFlipped = false,
+  automatic = false,
   span,
 }: {
   id: string;
@@ -21,6 +24,7 @@ const PlayerTile = memo(function PlayerTile({
   openPlayer: (id: string) => void;
   myView: boolean;
   autoFlipped?: boolean;
+  automatic?: boolean;
   span?: number;
 }) {
   // Snapshots are immutable. Select the visible primitives so changing another
@@ -41,12 +45,11 @@ const PlayerTile = memo(function PlayerTile({
         name: seat.name,
         color: seat.color,
         life: seat.life,
-        poison: seat.poison,
         eliminated: seat.eliminated,
-        flipped: s.profile.rotations[id] ?? autoFlipped,
+        flipped: automatic ? autoFlipped : (s.profile.rotations[id] ?? autoFlipped),
         disabled: !editable || seat.eliminated || game.status === 'ended',
-        flags: warnings(game, id).join(' · '),
-        showPoison: game.settings.poison,
+        flags: seat.life <= 0 ? 'Life ≤ 0' : '',
+        statuses: JSON.stringify(playerStatuses(game, id)),
         monarch: game.markers.monarch === id,
         initiative: game.markers.initiative === id,
         turn: game.settings.turnTracking && game.turn.playerId === id ? game.turn.number : 0,
@@ -61,6 +64,8 @@ const PlayerTile = memo(function PlayerTile({
   );
   const artwork = player?.artwork ?? '[]';
   const cards = useMemo(() => JSON.parse(artwork) as CommanderCard[], [artwork]);
+  const statusData = player?.statuses ?? '[]';
+  const statuses = useMemo(() => JSON.parse(statusData) as PlayerStatus[], [statusData]);
   const [delta, setDelta] = useState(0);
   const life = player?.life ?? 0;
   const last = useRef(life);
@@ -133,8 +138,27 @@ const PlayerTile = memo(function PlayerTile({
             <Icon name="plus" size={26} />
           </HoldButton>
         </div>
+        {statuses.length > 0 && (
+          <div className="player-statuses" role="group" aria-label="Player status">
+            {statuses.map((status) => (
+              <span
+                className={`status-chip ${status.warning ? 'is-warning' : ''}`}
+                data-status={status.kind}
+                data-key={status.key}
+                key={status.key}
+                role="img"
+                aria-label={`${status.warning ? 'Warning. ' : ''}${status.description}`}
+                title={status.description}
+              >
+                <Icon name={status.warning ? 'warning' : status.kind} size={13} />
+                <span className="status-chip-label">{status.label}</span>
+                <strong className="status-chip-value">{status.value}</strong>
+              </span>
+            ))}
+          </div>
+        )}
         <div
-          className={`tile-foot ${player.eliminated || flags || (player.showPoison && player.poison > 0) || player.monarch || player.initiative || player.turn ? 'has-status' : ''}`}
+          className={`tile-foot ${player.eliminated || flags || player.monarch || player.initiative || player.turn ? 'has-status' : ''}`}
         >
           {player.eliminated ? (
             <span>Eliminated · tap name to restore</span>
@@ -158,9 +182,6 @@ const PlayerTile = memo(function PlayerTile({
             </span>
           )}
           <span className="tile-trackers">
-            {player.showPoison && player.poison > 0 && (
-              <span aria-label={`${player.poison} poison`}>☠ {player.poison}</span>
-            )}
             {player.monarch && (
               <span title="Monarch" aria-label="Monarch">
                 ♛
@@ -184,8 +205,9 @@ export function Board({ openPlayer }: { openPlayer: (id: string) => void }) {
     room = useApp((s) => s.room),
     mode = useApp((s) => s.mode);
   const seat = mode === 'room' ? room?.me.seatId : profile.mySeat;
+  const { layout, automatic } = useTableLayout();
   const mine = profile.view === 'mine' && seat && game.players[seat];
-  const shared = profile.tableLayout === 'shared';
+  const shared = layout === 'shared';
   const farCount = Math.ceil(game.order.length / 2),
     nearCount = Math.max(1, Math.floor(game.order.length / 2));
   return (
@@ -235,7 +257,8 @@ export function Board({ openPlayer }: { openPlayer: (id: string) => void }) {
               index={i}
               openPlayer={openPlayer}
               myView={false}
-              autoFlipped={facesAcross(profile.tableLayout, i, game.order.length)}
+              autoFlipped={facesAcross(layout, i, game.order.length)}
+              automatic={automatic}
               span={shared ? (i < farCount ? nearCount : farCount) : undefined}
             />
           ))}

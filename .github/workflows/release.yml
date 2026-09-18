@@ -45,6 +45,8 @@ jobs:
           images: ${{ steps.image.outputs.name }}
           flavor: latest=false
           labels: |
+            org.opencontainers.image.title=Command Table
+            org.opencontainers.image.description=A Magic life counter for one device or shared rooms
             org.opencontainers.image.licenses=PolyForm-Noncommercial-1.0.0
           tags: |
             type=semver,pattern={{version}}
@@ -85,20 +87,48 @@ jobs:
         run: |
           set -euo pipefail
           notes="$RUNNER_TEMP/release-notes.md"
-          if [[ -f "docs/releases/$RELEASE_TAG.md" ]]; then
-            cp "docs/releases/$RELEASE_TAG.md" "$notes"
-          else
-            printf "# Commander's Table %s\n\n" "$RELEASE_TAG" > "$notes"
-          fi
           pull_tag=latest
           if [[ "$RELEASE_TAG" == *-* ]]; then pull_tag="${RELEASE_TAG#v}"; fi
-          printf '\n## Docker image\n\n`docker pull %s:%s`\n\nDigest: `%s@%s`\n\nDownload `compose.yaml` and `docker.env.example` below. Copy `docker.env.example` to `.env` and set `PUBLIC_ORIGIN` to the address your phones will open. See the [Docker guide](https://github.com/%s/blob/%s/docs/deployment.md) for installation and updates.\n' "$IMAGE_NAME" "$pull_tag" "$IMAGE_NAME" "$IMAGE_DIGEST" "$GH_REPO" "$RELEASE_TAG" >> "$notes"
+          printf '# Command Table %s\n\n## Install with Docker\n\nDocker is the recommended way to host Command Table, including on your own hardware.\n\n```sh\ndocker pull %s:%s\n```\n\n' "$RELEASE_TAG" "$IMAGE_NAME" "$pull_tag" > "$notes"
+          printf 'Install [Docker with Compose](https://docs.docker.com/compose/install/), then download [compose.yaml](https://github.com/%s/releases/download/%s/compose.yaml) and [docker.env.example](https://github.com/%s/releases/download/%s/docker.env.example) into the same folder. Copy `docker.env.example` to `.env`, set `PUBLIC_ORIGIN` to the exact address your phones will open, and set the image line to:\n\n```dotenv\nMTG_IMAGE=%s:%s\n```\n\n' "$GH_REPO" "$RELEASE_TAG" "$GH_REPO" "$RELEASE_TAG" "$IMAGE_NAME" "$pull_tag" >> "$notes"
+          cat >> "$notes" <<'DOCKER_INSTRUCTIONS'
+          Start from that folder:
+
+          ```sh
+          docker compose -p mtg-util -f compose.yaml pull
+          docker compose -p mtg-util -f compose.yaml up -d
+          docker compose -p mtg-util -f compose.yaml ps
+          ```
+
+          Open the configured address in your browser. The image supports amd64 and arm64; Node.js and npm are included in the container.
+
+          ## Update an existing Docker installation
+
+          Back up the server data and export any important browser-local games first. Keep the same Compose project, `.env`, data volume and public origin, then run the same `pull` and `up -d` commands above. Never use `down -v` during an update: it deletes server data.
+
+          Stable releases use `latest`; prereleases use the version shown above. Pulling downloads the image; recreating the container applies it. Updates are not automatic just because `latest` is selected. Players can use **Save & update** when prompted in the app.
+          DOCKER_INSTRUCTIONS
+          printf '\nSee the [Docker guide](https://github.com/%s/blob/%s/docs/deployment.md) for hardware setup, HTTPS, backups and restoration.\n\n## What changed\n\n' "$GH_REPO" "$RELEASE_TAG" >> "$notes"
+          if [[ -f "docs/releases/$RELEASE_TAG.md" ]]; then
+            sed '1{/^# /d;}' "docs/releases/$RELEASE_TAG.md" >> "$notes"
+          fi
+          printf '\n## Image details\n\nVersioned image digest: `%s@%s`\n' "$IMAGE_NAME" "$IMAGE_DIGEST" >> "$notes"
           release_options=()
           if [[ "$RELEASE_TAG" == *-* ]]; then release_options+=(--prerelease --latest=false); fi
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release edit "$RELEASE_TAG" --notes-file "$notes"
+            gh release edit "$RELEASE_TAG" --title "Command Table $RELEASE_TAG" --notes-file "$notes"
           else
-            gh release create "$RELEASE_TAG" --verify-tag --title "Commander's Table $RELEASE_TAG" --notes-file "$notes" "${release_options[@]}"
+            # Publish only after both installation downloads are available.
+            gh release create "$RELEASE_TAG" --draft --verify-tag --title "Command Table $RELEASE_TAG" --notes-file "$notes" "${release_options[@]}"
           fi
           cp .env.docker.example "$RUNNER_TEMP/docker.env.example"
-          gh release upload "$RELEASE_TAG" compose.yaml "$RUNNER_TEMP/docker.env.example" --clobber
+          for attempt in 1 2 3; do
+            if gh release upload "$RELEASE_TAG" compose.yaml "$RUNNER_TEMP/docker.env.example" --clobber; then
+              break
+            fi
+            if [[ "$attempt" -eq 3 ]]; then exit 1; fi
+            sleep "$((attempt * 5))"
+          done
+          if [[ "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" == true ]]; then
+            gh release edit "$RELEASE_TAG" --draft=false "${release_options[@]}"
+          fi

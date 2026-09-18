@@ -1,5 +1,10 @@
 import { useEffect, useId, useState } from 'react';
-import { cardDetailsSchema, type CardDetails } from '../../shared/cards.js';
+import {
+  cardDetailsSchema,
+  cardRulingsSchema,
+  type CardDetails,
+  type CardRulings,
+} from '../../shared/cards.js';
 import type { Game } from '../../shared/schema.js';
 import { Icon } from './ui.js';
 import '../styles/commander-reader.css';
@@ -7,10 +12,144 @@ import '../styles/commander-reader.css';
 // Public card text stays available when a reader is reopened during an outage.
 // Keep it separate from game data and never persist private API responses.
 const readings = new Map<string, { details: CardDetails; expires: number }>();
+const rulingReadings = new Map<string, { rulings: CardRulings; expires: number }>();
 function cachedReading(query: string) {
   const cached = readings.get(query);
   if (cached && cached.expires > Date.now()) return cached.details;
   readings.delete(query);
+}
+
+function cachedRulings(cardId: string) {
+  const cached = rulingReadings.get(cardId);
+  if (cached && cached.expires > Date.now()) return cached.rulings;
+  rulingReadings.delete(cardId);
+}
+
+function CardRulingsReading({ cardId, scryfallUrl }: { cardId: string; scryfallUrl: string }) {
+  const [attempt, setAttempt] = useState(0);
+  const [result, setResult] = useState<{ rulings?: CardRulings; error?: string }>(() => ({
+    rulings: cachedRulings(cardId),
+  }));
+  useEffect(() => {
+    const cached = cachedRulings(cardId);
+    if (cached) {
+      setResult({ rulings: cached });
+      return;
+    }
+    let active = true;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12_000);
+    setResult({});
+    void (async () => {
+      try {
+        const response = await fetch(`/api/cards/rulings?${new URLSearchParams({ id: cardId })}`, {
+          signal: controller.signal,
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
+        });
+        if (!response.ok)
+          throw new Error(
+            response.status === 429
+              ? 'Rulings lookup is busy. Wait a moment and retry.'
+              : 'Rulings are temporarily unavailable. Try again shortly.',
+          );
+        const parsed = cardRulingsSchema.safeParse(await response.json());
+        if (!parsed.success || parsed.data.cardId !== cardId)
+          throw new Error('Rulings could not be loaded. Try again shortly.');
+        if (!active) return;
+        rulingReadings.delete(cardId);
+        rulingReadings.set(cardId, { rulings: parsed.data, expires: Date.now() + 60 * 60_000 });
+        while (rulingReadings.size > 32) rulingReadings.delete(rulingReadings.keys().next().value!);
+        setResult({ rulings: parsed.data });
+      } catch (error) {
+        if (active)
+          setResult({
+            error: controller.signal.aborted
+              ? 'Rulings took too long to load. Reconnect and retry.'
+              : error instanceof TypeError
+                ? 'Rulings need a connection the first time. Reconnect and retry.'
+                : error instanceof Error
+                  ? error.message
+                  : 'Rulings could not be loaded. Try again shortly.',
+          });
+      } finally {
+        clearTimeout(timer);
+      }
+    })();
+    return () => {
+      active = false;
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [cardId, attempt]);
+
+  if (result.error)
+    return (
+      <div className="commander-read-error">
+        <p role="status">{result.error}</p>
+        <button className="secondary" onClick={() => setAttempt((value) => value + 1)}>
+          Retry rulings
+        </button>
+      </div>
+    );
+  if (!result.rulings) return <p role="status">Loading rulings…</p>;
+  const rulings = result.rulings;
+  return (
+    <>
+      {rulings.rulings.length ? (
+        <ol className="commander-rulings-list" aria-label="Card rulings">
+          {rulings.rulings.map((ruling, index) => (
+            <li key={index}>
+              <p className="commander-ruling-source">
+                <time dateTime={ruling.publishedAt}>
+                  {new Date(`${ruling.publishedAt}T12:00:00Z`).toLocaleDateString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    timeZone: 'UTC',
+                  })}
+                </time>
+                <span>{ruling.source === 'wotc' ? 'Wizards of the Coast' : 'Scryfall note'}</span>
+              </p>
+              <p className="commander-ruling-text">{ruling.comment}</p>
+            </li>
+          ))}
+        </ol>
+      ) : !rulings.hasMore ? (
+        <p role="status">No card-specific rulings are listed on Scryfall.</p>
+      ) : null}
+      {rulings.hasMore && (
+        <p className="hint">
+          More rulings are available.{' '}
+          <a href={scryfallUrl} target="_blank" rel="noopener noreferrer">
+            Read the full list on Scryfall ↗
+          </a>
+        </p>
+      )}
+      <p className="hint">Rulings provided by Scryfall. Sources are shown with each ruling.</p>
+    </>
+  );
+}
+
+function CardRulingsSection({ details }: { details: CardDetails }) {
+  const [expanded, setExpanded] = useState(false);
+  const id = useId();
+  return (
+    <section className="commander-rulings" aria-label="Commander rulings">
+      <button
+        className="commander-rulings-toggle"
+        aria-expanded={expanded}
+        aria-controls={id}
+        onClick={() => setExpanded((value) => !value)}
+      >
+        <span>Rulings & notes</span>
+        <small>{expanded ? 'Hide' : 'Read rulings'}</small>
+      </button>
+      <div id={id} hidden={!expanded}>
+        {expanded && <CardRulingsReading cardId={details.id} scryfallUrl={details.scryfallUrl} />}
+      </div>
+    </section>
+  );
 }
 
 function FullCardImage({ face }: { face: CardDetails['faces'][number] }) {
@@ -137,6 +276,7 @@ function CardReading({ query }: { query: string }) {
         </a>
         <p className="hint">Card images © Wizards of the Coast. Card data provided by Scryfall.</p>
       </div>
+      <CardRulingsSection key={details.id} details={details} />
     </>
   );
 }

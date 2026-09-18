@@ -161,7 +161,8 @@ function bounded(n: number, min = 0) {
 }
 export function reduceGame(previous: Game, input: Command, ctx: Context): Game {
   const c = commandSchema.parse(input),
-    g = structuredClone(previous);
+    g = structuredClone(previous),
+    groupId = c.type === 'groupLife' ? undefined : ctx.groupId;
   if (g.status === 'ended' && !['rematch', 'reopen', 'undo', 'redo', 'roll'].includes(c.type))
     throw new Error('This game has ended. Start a rematch to play again.');
   const p = 'playerId' in c && c.playerId ? g.players[c.playerId] : undefined;
@@ -187,6 +188,21 @@ export function reduceGame(previous: Game, input: Command, ctx: Context): Game {
         c.type === 'set'
           ? `${p!.name} set ${c.field} to ${next}`
           : `${p!.name} ${next >= old ? 'gained' : 'lost'} ${Math.abs(next - old)} ${c.field}`;
+      break;
+    }
+    case 'groupLife': {
+      const caster = g.players[c.casterId];
+      if (!caster) throw new Error('Unknown caster');
+      if (caster.eliminated) throw new Error('Restore the caster before changing life');
+      const targets = c.targetIds.map((id) => {
+        const target = g.players[id];
+        if (!target) throw new Error('Unknown opponent');
+        if (target.eliminated) throw new Error('Choose opponents still in the game');
+        return target;
+      });
+      for (const target of targets) target.life = bounded(target.life - c.loss, -LIMIT);
+      if (c.gain) caster.life = bounded(caster.life + c.gain, -LIMIT);
+      summary = `${caster.name}: ${targets.length} opponent${targets.length === 1 ? '' : 's'} lost ${c.loss} life each${c.gain ? `; gained ${c.gain} life` : ''}`;
       break;
     }
     case 'damage':
@@ -333,8 +349,8 @@ export function reduceGame(previous: Game, input: Command, ctx: Context): Game {
     if (!changes.length) throw new Error('No change to record');
     const last = g.undo.at(-1);
     if (
-      ctx.groupId &&
-      last?.groupId === ctx.groupId &&
+      groupId &&
+      last?.groupId === groupId &&
       last.actorId === ctx.actorId &&
       last.revision === previous.revision
     ) {
@@ -352,12 +368,11 @@ export function reduceGame(previous: Game, input: Command, ctx: Context): Game {
         summary = `${p!.name} ${after >= before ? 'gained' : 'lost'} ${Math.abs(after - before)} ${c.field}`;
       }
       last.summary = summary;
-      if (g.history.at(-1)?.groupId === ctx.groupId) g.history.pop();
+      if (g.history.at(-1)?.groupId === groupId) g.history.pop();
     } else
-      g.undo = [
-        ...g.undo,
-        { changes, actorId: ctx.actorId, groupId: ctx.groupId, summary, revision: g.revision },
-      ].slice(-60);
+      g.undo = [...g.undo, { changes, actorId: ctx.actorId, groupId, summary, revision: g.revision }].slice(
+        -60,
+      );
     g.redo = [];
   }
   if (c.type === 'roll') g.redo = [];
@@ -372,7 +387,7 @@ export function reduceGame(previous: Game, input: Command, ctx: Context): Game {
         summary,
         at: ctx.now,
         revision: g.revision,
-        groupId: ctx.groupId,
+        groupId,
       },
     ].slice(-200);
   return gameSchema.parse(g);

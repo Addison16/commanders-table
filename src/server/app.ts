@@ -57,7 +57,7 @@ export async function buildApp(
         throw new HttpError(403, 'Origin is not allowed. Check PUBLIC_ORIGIN for this site address.');
       if (!upgrade) {
         if (req.headers['x-mtg-client'] !== String(PROTOCOL))
-          throw new HttpError(426, "Please update or reload Commander's Table before continuing.");
+          throw new HttpError(426, 'Please update or reload Command Table before continuing.');
         if (req.url !== '/api/session') {
           const token = req.cookies.mtg_guest,
             csrf = req.headers['x-csrf-token'];
@@ -94,6 +94,9 @@ export async function buildApp(
   );
   app.get('/api/cards/details', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req) =>
     cards.details(cardQuery.parse(req.query).q),
+  );
+  app.get('/api/cards/rulings', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req) =>
+    cards.rulings(z.object({ id: idSchema }).parse(req.query).id),
   );
   app.post(
     '/api/session',

@@ -83,3 +83,20 @@ export const cardDetailsSchema = z.strictObject({
 });
 
 export type CardDetails = z.infer<typeof cardDetailsSchema>;
+
+/** Read-only rulings stay outside saved games and retain their original attribution. */
+export const cardRulingsSchema = z.strictObject({
+  cardId: z.string().uuid(),
+  rulings: z
+    .array(
+      z.strictObject({
+        source: z.enum(['wotc', 'scryfall']),
+        publishedAt: z.iso.date(),
+        comment: z.string().trim().min(1).max(12000),
+      }),
+    )
+    .max(200),
+  hasMore: z.boolean(),
+});
+
+export type CardRulings = z.infer<typeof cardRulingsSchema>;

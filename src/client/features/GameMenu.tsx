@@ -13,7 +13,8 @@ import {
   openHome,
 } from '../app/store.js';
 import { gameExport, parseImport } from '../storage/repository.js';
-import { ask, downloadText, Icon, Sheet } from '../components/ui.js';
+import { ask, choose, downloadText, Icon, Sheet } from '../components/ui.js';
+import { GameRecapSheet } from './GameRecap.js';
 export function HistorySheet({ onClose }: { onClose: () => void }) {
   const game = useApp((s) => s.game)!,
     mode = useApp((s) => s.mode);
@@ -62,6 +63,7 @@ export function GameMenu({ onClose, open }: { onClose: () => void; open: (sheet:
     state = useApp();
   const [archive, setArchive] = useState<Game[]>([]);
   const [importText, setImportText] = useState('');
+  const [recap, setRecap] = useState<{ game: Game; at: number } | null>(null);
   useEffect(() => {
     void repository.archive().then(setArchive).catch(report);
   }, []);
@@ -81,7 +83,24 @@ export function GameMenu({ onClose, open }: { onClose: () => void; open: (sheet:
       report(e);
     }
   };
-  const available = !state.readOnly && (state.mode === 'local' || state.connected);
+  const available = !state.readOnly && !state.pending && (state.mode === 'local' || state.connected);
+  const stillCurrentGame = () => {
+    const current = useApp.getState();
+    if (
+      current.confirmed?.id !== game.id ||
+      current.confirmed.status !== game.status ||
+      current.screen !== 'board' ||
+      current.mode !== state.mode ||
+      current.room?.id !== state.room?.id
+    ) {
+      report(
+        new Error('The game changed while this prompt was open. Review the current game and try again.'),
+      );
+      return false;
+    }
+    return true;
+  };
+  if (recap) return <GameRecapSheet game={recap.game} capturedAt={recap.at} onClose={() => setRecap(null)} />;
   return (
     <Sheet
       title="Around the table"
@@ -101,6 +120,14 @@ export function GameMenu({ onClose, open }: { onClose: () => void; open: (sheet:
           <span>Game history</span>
           <Icon name="arrow" />
         </button>
+        <button
+          disabled={!!state.pending}
+          onClick={() => setRecap({ game: structuredClone(game), at: Date.now() + state.clockOffset })}
+        >
+          <Icon name="download" />
+          <span>Share game recap</span>
+          <Icon name="arrow" />
+        </button>
         <button onClick={() => open('settings')}>
           <Icon name="settings" />
           <span>Display & preferences</span>
@@ -113,9 +140,7 @@ export function GameMenu({ onClose, open }: { onClose: () => void; open: (sheet:
             <Icon name="arrow" />
           </button>
         )}
-        <button
-          onClick={() => downloadText(gameExport(game), `commanders-table-${game.id.slice(0, 8)}.json`)}
-        >
+        <button onClick={() => downloadText(gameExport(game), `command-table-${game.id.slice(0, 8)}.json`)}>
           <Icon name="download" />
           <span>Export game backup</span>
           <Icon name="arrow" />
@@ -129,6 +154,7 @@ export function GameMenu({ onClose, open }: { onClose: () => void; open: (sheet:
                 'Save the final game and reset life, counters, damage, turns, timer and dice. Names, commander labels and seats stay.',
               )
             ) {
+              if (!stillCurrentGame()) return;
               await act({ type: 'rematch' });
               onClose();
             }
@@ -257,15 +283,17 @@ export function GameMenu({ onClose, open }: { onClose: () => void; open: (sheet:
           className="danger full"
           disabled={!available || !isHost()}
           onClick={async () => {
-            if (
-              await ask(
-                'End this game?',
-                'Return to the starting options. Your totals and history will be kept in Recently ended for 24 hours, so you can reopen an accidental ending.',
-              )
-            ) {
-              await act({ type: 'end' });
-              onClose();
-            }
+            const choice = await choose(
+              'End this game?',
+              `Play again? Rematch keeps player names, colors and commanders, resets life to ${game.settings.startingLife}, and clears all game stats. End game returns home and keeps the final game for 24 hours.`,
+              [
+                { value: 'rematch', label: 'Rematch', primary: true },
+                { value: 'end', label: 'End game' },
+              ],
+            );
+            if (!choice || !stillCurrentGame()) return;
+            await act({ type: choice === 'rematch' ? 'rematch' : 'end' });
+            onClose();
           }}
         >
           End game
